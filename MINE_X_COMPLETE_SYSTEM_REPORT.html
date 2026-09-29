@@ -32,6 +32,33 @@
       max-width: 1100px;
       margin: 0 auto;
     }
+    @page {
+      size: A4;
+      margin: 12mm 12mm 12mm 12mm;
+    }
+    @media print {
+      body {
+        background: #090d16 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        padding: 0 !important;
+      }
+      .container {
+        max-width: 100% !important;
+      }
+      header, .card, .screenshot-card, table, pre, .highlight-box {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 14px !important;
+      }
+      h2 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+    }
     header {
       background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
       border: 1px solid #312e81;
