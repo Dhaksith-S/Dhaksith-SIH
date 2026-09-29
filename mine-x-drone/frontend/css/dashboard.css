@@ -425,8 +425,16 @@ body, html {
   font-size: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   transition: all 0.08s ease;
+  cursor: pointer;
+  user-select: none;
 }
-.keycap.active {
+.keycap:hover {
+  background: #1e293b;
+  border-color: #64748b;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.keycap:active, .keycap.active {
   background: var(--cyan-dark);
   color: #fff;
   border-color: var(--cyan-primary);

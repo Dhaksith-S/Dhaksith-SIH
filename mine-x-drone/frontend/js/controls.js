@@ -18,6 +18,9 @@ class DroneControls {
     this.keyMap = {
       'KeyW': 'w', 'KeyS': 's', 'KeyA': 'a', 'KeyD': 'd',
       'KeyQ': 'q', 'KeyE': 'e', 'KeyR': 'r', 'KeyF': 'f',
+      'ArrowUp': 'w', 'ArrowDown': 's', 'ArrowLeft': 'a', 'ArrowRight': 'd',
+      'PageUp': 'r', 'PageDown': 'f',
+      'KeyT': 'arm_toggle', 'KeyH': 'hover',
       'Space': 'space', 'ShiftLeft': 'shift', 'ShiftRight': 'shift',
       'ControlLeft': 'control', 'ControlRight': 'control'
     };
@@ -27,30 +30,65 @@ class DroneControls {
   }
 
   init() {
-    // 1. Keyboard event listeners
-    window.addEventListener('keydown', (e) => this.handleKeyDown(e));
-    window.addEventListener('keyup', (e) => this.handleKeyUp(e));
+    // 1. Keyboard event listeners (global window capture)
+    window.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
+    window.addEventListener('keyup', (e) => this.handleKeyUp(e), true);
 
     // 2. Flight Action Buttons
     this.setupButtonListeners();
 
-    // 3. Setup Accordions
+    // 3. Interactive On-Screen D-Pad / Keycaps (Click & Hold with Mouse or Touch)
+    this.setupInteractiveKeycaps();
+
+    // 4. Setup Accordions
     this.setupAccordions();
+
+    // 5. Canvas Focus on Click
+    const viewport = document.getElementById('viewport-container');
+    if (viewport) {
+      viewport.addEventListener('click', () => {
+        window.focus();
+        document.body.focus();
+      });
+    }
   }
 
   isTyping(e) {
-    const tag = e.target.tagName.toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select';
+    if (!e || !e.target) return false;
+    const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
+    return tag === 'input' || tag === 'textarea';
+  }
+
+  resolveKeyName(e) {
+    // Priority: code map -> key letter -> arrow key
+    if (this.keyMap[e.code]) return this.keyMap[e.code];
+    if (e.key) {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || k === 'arrowup') return 'w';
+      if (k === 's' || k === 'arrowdown') return 's';
+      if (k === 'a' || k === 'arrowleft') return 'a';
+      if (k === 'd' || k === 'arrowright') return 'd';
+      if (k === 'q') return 'q';
+      if (k === 'e') return 'e';
+      if (k === 'r' || k === 'pageup') return 'r';
+      if (k === 'f' || k === 'pagedown') return 'f';
+      if (k === ' ' || k === 'space') return 'space';
+      if (k === 'shift') return 'shift';
+      if (k === 'control' || k === 'ctrl') return 'control';
+      if (k === 't') return 'arm_toggle';
+      if (k === 'h') return 'hover';
+    }
+    return null;
   }
 
   handleKeyDown(e) {
     if (this.isTyping(e)) return;
 
-    const keyName = this.keyMap[e.code];
+    const keyName = this.resolveKeyName(e);
     if (!keyName) return;
 
-    // Prevent spacebar scrolling page or standard browser shortcuts
-    if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'KeyS' || e.code === 'KeyA' || e.code === 'KeyD') {
+    // Prevent spacebar scrolling page or arrow key page scrolling
+    if (e.code === 'Space' || e.key === ' ' || e.key.startsWith('Arrow') || ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyR', 'KeyF'].includes(e.code)) {
       e.preventDefault();
     }
 
@@ -60,13 +98,14 @@ class DroneControls {
 
       if (keyName === 'space') {
         this.executeCommand('EMERGENCY_STOP');
-      } else if (keyName === 'r') {
+      } else if (keyName === 'arm_toggle') {
         const btnArm = document.getElementById('btn-arm-toggle');
         const isArmed = btnArm?.dataset.armed === 'true';
         this.executeCommand(isArmed ? 'DISARM' : 'ARM');
-      } else if (keyName === 'f') {
+      } else if (keyName === 'hover') {
         this.executeCommand('HOVER');
       } else {
+        // Send movement KEY_DOWN (auto-arms in backend if disarmed)
         this.socket.sendCommand('KEY_DOWN', { key: keyName });
       }
     }
@@ -75,13 +114,84 @@ class DroneControls {
   handleKeyUp(e) {
     if (this.isTyping(e)) return;
 
-    const keyName = this.keyMap[e.code];
+    const keyName = this.resolveKeyName(e);
     if (!keyName) return;
 
     if (this.keys[keyName]) {
       this.keys[keyName] = false;
       this.updateKeycapUI(keyName, false);
-      this.socket.sendCommand('KEY_UP', { key: keyName });
+      if (keyName !== 'space' && keyName !== 'arm_toggle' && keyName !== 'hover') {
+        this.socket.sendCommand('KEY_UP', { key: keyName });
+      }
+    }
+  }
+
+  setupInteractiveKeycaps() {
+    const keyActions = ['w', 's', 'a', 'd', 'q', 'e', 'r', 'f'];
+    keyActions.forEach(k => {
+      const el = document.getElementById(`key-${k}`);
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      el.style.userSelect = 'none';
+
+      const press = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!this.keys[k]) {
+          this.keys[k] = true;
+          this.updateKeycapUI(k, true);
+          this.socket.sendCommand('KEY_DOWN', { key: k });
+        }
+      };
+
+      const release = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (this.keys[k]) {
+          this.keys[k] = false;
+          this.updateKeycapUI(k, false);
+          this.socket.sendCommand('KEY_UP', { key: k });
+        }
+      };
+
+      el.addEventListener('mousedown', press);
+      el.addEventListener('mouseup', release);
+      el.addEventListener('mouseleave', release);
+      el.addEventListener('touchstart', press, { passive: false });
+      el.addEventListener('touchend', release, { passive: false });
+      el.addEventListener('touchcancel', release, { passive: false });
+    });
+
+    // Space keycap (E-Stop)
+    const spaceEl = document.getElementById('key-space');
+    if (spaceEl) {
+      spaceEl.style.cursor = 'pointer';
+      spaceEl.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        this.executeCommand('EMERGENCY_STOP');
+      });
+    }
+
+    // Shift keycap (Speed Boost)
+    const shiftEl = document.getElementById('key-shift');
+    if (shiftEl) {
+      shiftEl.style.cursor = 'pointer';
+      shiftEl.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        this.socket.sendCommand('SET_SPEED_MOD', { mode: 'BOOST' });
+        this.updateSpeedButtons('BOOST');
+      });
+    }
+
+    // Ctrl keycap (Precision Speed)
+    const ctrlEl = document.getElementById('key-ctrl');
+    if (ctrlEl) {
+      ctrlEl.style.cursor = 'pointer';
+      ctrlEl.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        this.socket.sendCommand('SET_SPEED_MOD', { mode: 'PRECISION' });
+        this.updateSpeedButtons('PRECISION');
+      });
     }
   }
 

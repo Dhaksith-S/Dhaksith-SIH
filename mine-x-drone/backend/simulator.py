@@ -86,7 +86,7 @@ class MineSimulator:
         # Orientation (Euler degrees)
         self.roll = 0.0
         self.pitch = 0.0
-        self.yaw = 180.0  # Facing into the cavern (negative Z)
+        self.yaw = 0.0  # Facing into the cavern (negative Z)
         
         # Accelerations
         self.ax = 0.0

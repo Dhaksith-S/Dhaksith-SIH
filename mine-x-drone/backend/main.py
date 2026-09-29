@@ -178,6 +178,11 @@ async def post_command(payload: CommandPayload):
     res = controller.handle_command(payload.dict())
     return res
 
+@app.get("/api/telemetry/latest")
+async def get_latest_telemetry():
+    """Return latest complete telemetry packet."""
+    return telemetry.get_current_packet()
+
 @app.get("/api/telemetry/history")
 async def get_history(seconds: int = 60):
     """Return historical telemetry data for graphs."""

@@ -43,69 +43,99 @@ class DroneController:
         # Active fault latch (for Emergency stop or critical safety failsafe)
         self.active_fault = None
 
+    def _auto_arm_if_needed(self):
+        """Auto-arm the drone when an operator movement command is received, unless in a latched emergency fault."""
+        if not self.armed and self.flight_mode != "EMERGENCY":
+            self.armed = True
+            self.sim.armed = True
+            self.active_fault = None
+            self.hw.fc.arm()
+            logger.info("Drone AUTO-ARMED on operator movement command")
+
     def handle_command(self, cmd_data: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatch incoming JSON command."""
         cmd = cmd_data.get("command", "").upper()
         
+        KEY_ALIASES = {
+            "arrowup": "w", "up": "w",
+            "arrowdown": "s", "down": "s",
+            "arrowleft": "a", "left": "a",
+            "arrowright": "d", "right": "d",
+            "pageup": "r", "pagedown": "f",
+            "control": "ctrl"
+        }
+
         if cmd == "KEY_DOWN":
-            key = cmd_data.get("key", "").lower()
+            raw_key = cmd_data.get("key", "").lower()
+            key = KEY_ALIASES.get(raw_key, raw_key)
+            if key in ["w", "s", "a", "d", "q", "e", "r", "f"]:
+                self._auto_arm_if_needed()
             if key in self.keys_pressed:
                 self.keys_pressed[key] = True
             if key == "shift":
                 self.speed_mode = "BOOST"
                 self.sim.speed_multiplier = DRONE_PARAMS["boost_multiplier"]
-            elif key == "control" or key == "ctrl":
+            elif key in ["ctrl", "control"]:
                 self.speed_mode = "PRECISION"
                 self.sim.speed_multiplier = DRONE_PARAMS["precision_multiplier"]
             self._update_keyboard_velocities()
-            return {"status": "OK", "action": f"KEY_DOWN_{key}"}
+            return {"status": "OK", "action": f"KEY_DOWN_{key}", "armed": self.armed}
 
         elif cmd == "KEY_UP":
-            key = cmd_data.get("key", "").lower()
+            raw_key = cmd_data.get("key", "").lower()
+            key = KEY_ALIASES.get(raw_key, raw_key)
             if key in self.keys_pressed:
                 self.keys_pressed[key] = False
-            if key == "shift" or key == "control" or key == "ctrl":
+            if key in ["shift", "ctrl", "control"]:
                 self.speed_mode = "NORMAL"
                 self.sim.speed_multiplier = 1.0
             self._update_keyboard_velocities()
-            return {"status": "OK", "action": f"KEY_UP_{key}"}
+            return {"status": "OK", "action": f"KEY_UP_{key}", "armed": self.armed}
 
         elif cmd == "MOVE_FORWARD":
+            self._auto_arm_if_needed()
             self.keys_pressed["w"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_FORWARD"}
 
         elif cmd == "MOVE_BACKWARD":
+            self._auto_arm_if_needed()
             self.keys_pressed["s"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_BACKWARD"}
 
         elif cmd == "MOVE_LEFT":
+            self._auto_arm_if_needed()
             self.keys_pressed["a"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_LEFT"}
 
         elif cmd == "MOVE_RIGHT":
+            self._auto_arm_if_needed()
             self.keys_pressed["d"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_RIGHT"}
 
         elif cmd == "MOVE_UP":
+            self._auto_arm_if_needed()
             self.keys_pressed["r"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_UP"}
 
         elif cmd == "MOVE_DOWN":
+            self._auto_arm_if_needed()
             self.keys_pressed["f"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "MOVE_DOWN"}
 
         elif cmd == "ROTATE_LEFT":
+            self._auto_arm_if_needed()
             self.keys_pressed["q"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "ROTATE_LEFT"}
 
         elif cmd == "ROTATE_RIGHT":
+            self._auto_arm_if_needed()
             self.keys_pressed["e"] = True
             self._update_keyboard_velocities()
             return {"status": "OK", "action": "ROTATE_RIGHT"}
