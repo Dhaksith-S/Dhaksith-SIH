@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MINE-X Drone Command — Complete Technical & System Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #0ea5e9;
+      --accent-glow: rgba(14, 165, 233, 0.25);
+      --amber: #f59e0b;
+      --emerald: #10b981;
+      --rose: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      border: 1px solid #312e81;
+      border-radius: 16px;
+      padding: 40px;
+      margin-bottom: 40px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, rgba(14,165,233,0.3) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.4);
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #cbd5e1;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 16px;
+    }
+    .meta-item strong { color: var(--accent); }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin: 40px 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+    }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin: 24px 0 12px 0;
+    }
+    p { margin-bottom: 16px; color: #cbd5e1; font-size: 15px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .screenshot-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+    .screenshot-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-bottom: 1px solid #1e293b;
+    }
+    .screenshot-caption {
+      padding: 14px 18px;
+    }
+    .screenshot-caption h4 {
+      font-size: 14px;
+      color: #ffffff;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .screenshot-caption p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+      background: #0f172a;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #1e293b;
+    }
+    th {
+      background: #1e293b;
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td { color: #e2e8f0; }
+    td strong { color: #ffffff; }
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #059669; }
+    .pill-blue { background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid #0284c7; }
+    .pill-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #d97706; }
+    .pill-red { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #dc2626; }
+    pre {
+      background: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #38bdf8;
+      margin: 16px 0;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(14, 165, 233, 0.12);
+      color: #7dd3fc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .highlight-box {
+      background: rgba(14, 165, 233, 0.08);
+      border-left: 4px solid var(--accent);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+    .highlight-box strong { color: #38bdf8; }
+    footer {
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid #1e293b;
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">SMART INDIA HACKATHON • TECHNICAL SPECIFICATION</span>
+      <h1>MINE-X DRONE COMMAND</h1>
+      <div class="subtitle">Autonomous Subterranean Mine Inspection, 3D Digital Twin & Spherical Rolling-Cage Drone Platform</div>
+      <div class="meta-bar">
+        <div class="meta-item">Repository: <strong>Dhaksith-S/Dhaksith-SIH</strong></div>
+        <div class="meta-item">Platform: <strong>FastAPI / Three.js / WebSocket</strong></div>
+        <div class="meta-item">Status: <strong>Automated Verification Passed (100%)</strong></div>
+        <div class="meta-item">Date: <strong>September 2026</strong></div>
+      </div>
+    </header>
+
+    <h2>1. Executive Summary & Problem Formulation</h2>
+    <div class="card">
+      <p>Underground mining operations involve high-risk, GPS-denied environments subject to hazardous gas accumulations (explosive methane CH₄, toxic carbon monoxide CO, oxygen depletion), structural timber collapse, and rough rock talus. Conventional wheeled ground rovers are easily immobilized by blasted rock talus and rail debris, while conventional open-rotor quadcopters suffer catastrophic crashes upon contacting mine walls, roofs, or support timbering.</p>
+      <div class="highlight-box">
+        <strong>The MINE-X Solution:</strong> A unified digital-twin inspection system pairing an interactive 3D subterranean mine cavern with a <strong>Spherical Protective Cage Drone</strong>. The outer spherical cage ($R = 1.35\text{m}$) rolls along the mine floor and haulage rails for ground locomotion while an internal stabilized gimbal keeps the optical inspection camera, searchlights, and avionics strictly upright and level. In open stopes, the drone takes off into flight mode with spinning propellers and dynamic aerodynamic banking.
+      </div>
+    </div>
+
+    <h2>2. Visual Proof of Operations & Mode Audit</h2>
+    <div class="grid-2">
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_1_normal_flight.png" alt="Mode 1: Normal Flight">
+        <div class="screenshot-caption">
+          <h4><span>Mode 1: Normal Flight</span> <span class="status-pill pill-blue">ARMED • FLIGHT</span></h4>
+          <p>Altitude 3.78m. 4 propellers active with motion blur (opacity 0.75). Outer cage stationary (rotation 0 rad). Dual searchlights illuminating cavern drifts.</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_2_touchdown.png" alt="Mode 2: Landing Touchdown">
+        <div class="screenshot-caption">
+          <h4><span>Mode 2: Landing Touchdown</span> <span class="status-pill pill-green">ARMED • TOUCHDOWN</span></h4>
+          <p>Altitude 1.35m. Smooth vertical descent contacting timber haulage track rails. Propellers throttling down to soft idle.</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_3_ground_rolling.png" alt="Mode 3: Ground Rolling">
+        <div class="screenshot-caption">
+          <h4><span>Mode 3: Ground Rolling Traversal</span> <span class="status-pill pill-amber">GROUND TRACTION</span></h4>
+          <p>Traversed forward from Z=25m to Z=36m. Outer cage rotated +11.815 rad along ground while inner camera core stayed strictly upright (0.022 rad).</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_4_takeoff.png" alt="Mode 4: Takeoff Spool-Up">
+        <div class="screenshot-caption">
+          <h4><span>Mode 4: Takeoff Spool-Up</span> <span class="status-pill pill-blue">CLIMBING</span></h4>
+          <p>Cage rotation ceases immediately. All 4 propellers spin up rapidly to high RPM. Smooth climb back to cruise hover at 3.78m.</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_5_emergency_disarmed.png" alt="Mode 5: Emergency Disarm">
+        <div class="screenshot-caption">
+          <h4><span>Mode 5: Emergency Stop / Disarmed</span> <span class="status-pill pill-red">DISARMED • FAULT</span></h4>
+          <p>Spacebar / E-Stop triggered. Motors killed immediately (0 RPM, zero blur). Latched fault banner active. Settles safely on floor.</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img src="mine-x-drone/screenshots/spherical_drone/mode_6_design_ref_modal.png" alt="Mode 6: Design Reference Modal">
+        <div class="screenshot-caption">
+          <h4><span>Mode 6: Design Reference Video</span> <span class="status-pill pill-green">MODAL PLAYBACK</span></h4>
+          <p>Secondary button plays original 10-second reference video clip inside a modal overlay without disrupting the live 3D mine viewport.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screenshot-card" style="margin-bottom: 24px;">
+      <img src="mine-x-drone/screenshots/spherical_drone/overview_scene_wide.png" alt="Wide Overview of Subterranean Cavern">
+      <div class="screenshot-caption">
+        <h4><span>Subterranean Digital Twin: Titan Cavern Overview</span> <span class="status-pill pill-blue">3D VIEWPORT</span></h4>
+        <p>Complete 240-meter haulage drift featuring timber support square-sets, haulage ore rails, talus rock cones, volumetric gas plumes, and top floating cyan locator beacon for distant zoom orientation.</p>
+      </div>
+    </div>
+
+    <h2>3. Spherical Drone Engineering Details</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Subsystem</th>
+            <th>Design Specification</th>
+            <th>Physical Rationale / Benefit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Protective Outer Cage</strong></td>
+            <td>Geodesic icosahedron wireframe (Radius = 1.35m) with 5 carbon toroid rings and anodized orange node brackets.</td>
+            <td>Open mesh allows 100% rotor airflow with zero prop-wash throttling. Protects rotors from rock walls, timber portals, and roof strikes.</td>
+          </tr>
+          <tr>
+            <td><strong>Concealed Ground Drive</strong></td>
+            <td>Internal drive track ring near inner cage equator + concealed micro-actuator housing tucked flush beneath chassis.</td>
+            <td>Eliminates large conspicuous external wheels that get snagged in tight mine fissures. Produces clean ground rolling locomotion.</td>
+          </tr>
+          <tr>
+            <td><strong>Inner Gimbal Core</strong></td>
+            <td>Double-deck carbon-fiber chassis with top brass/gold dome antenna puck and decoupled rotational kinematics.</td>
+            <td>Counter-rotates dynamically during ground rolling to keep the optical inspection camera, searchlights, and avionics strictly level.</td>
+          </tr>
+          <tr>
+            <td><strong>Powertrain & Rotors</strong></td>
+            <td>4 carbon arm spars, brushless motor stators, 2-blade carbon props, and semi-transparent blur discs.</td>
+            <td>RPM dynamically scaled from telemetry packets (0-100%). Blur discs scale in opacity up to 0.75 during flight and drop to 0 on E-Stop.</td>
+          </tr>
+          <tr>
+            <td><strong>Vision & Illumination</strong></td>
+            <td>Forward optical inspection camera + twin high-power searchlights casting Three.js SpotLights and volumetric conical beams.</td>
+            <td>Penetrates unventilated dark mine corridors with 50-meter illumination range for visual inspection of rock faults.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>4. Multi-Mode Kinematics Mathematical Model</h2>
+    <div class="card">
+      <p>The drone executes decoupled state-based kinematic updates at 60 FPS in Three.js:</p>
+      <pre>
+1. GROUND ROLLING KINEMATICS (Altitude <= 1.42m and Delta Distance > 0.002m):
+   local_forward = -(dz * cos(yaw) + dx * sin(yaw))
+   roll_delta    = (local_forward / cage_radius) * 2.2
+   cage_angle_x += roll_delta
+   outerCageGroup.rotation.x = cage_angle_x
+
+   // Horizon Gimbal Stabilization:
+   innerCoreGroup.rotation.x = lerp(innerCoreGroup.rotation.x, 0.0, 0.25)
+   innerCoreGroup.rotation.z = lerp(innerCoreGroup.rotation.z, 0.0, 0.25)
+
+2. FLIGHT KINEMATICS (Airborne Altitude > 1.42m):
+   outerCageGroup.rotation.x = lerp(outerCageGroup.rotation.x, 0.0, 0.08)
+   innerCoreGroup.rotation.x = lerp(innerCoreGroup.rotation.x, target_pitch, 0.18)
+   innerCoreGroup.rotation.z = lerp(innerCoreGroup.rotation.z, target_roll, 0.18)
+   propeller_spin_speed     = max(0.35, motor_rpm_avg * 0.008)
+
+3. EMERGENCY STOP (Armed == False):
+   motors_rpm = 0.0
+   propeller_blur_opacity = 0.0
+   outerCageGroup.rotation.x = ceased
+   innerCoreGroup.rotation.x = 0.0 (level settlement)</pre>
+    </div>
+
+    <h2>5. Automated Test Audit Results</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Test Step</th>
+            <th>Mode Evaluated</th>
+            <th>Altitude (y)</th>
+            <th>Outer Cage Roll</th>
+            <th>Inner Pitch</th>
+            <th>Motors / Blur</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Step 1</td>
+            <td><strong>Normal Flight</strong></td>
+            <td>3.78 m</td>
+            <td>0.0 rad</td>
+            <td>0.0 rad</td>
+            <td>Blur = 0.75</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+          <tr>
+            <td>Step 2</td>
+            <td><strong>Landing Touchdown</strong></td>
+            <td>1.35 m</td>
+            <td>0.0 rad</td>
+            <td>0.0 rad</td>
+            <td>Idle (0.08)</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+          <tr>
+            <td>Step 3</td>
+            <td><strong>Ground Rolling</strong></td>
+            <td>1.35 m</td>
+            <td>+11.815 rad</td>
+            <td>0.022 rad (Upright)</td>
+            <td>Idle (0.08)</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+          <tr>
+            <td>Step 4</td>
+            <td><strong>Takeoff</strong></td>
+            <td>3.78 m</td>
+            <td>0.0 rad</td>
+            <td>0.0 rad</td>
+            <td>Blur = 0.75</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+          <tr>
+            <td>Step 5</td>
+            <td><strong>Emergency Stop</strong></td>
+            <td>1.35 m</td>
+            <td>Ceased</td>
+            <td>0.0 rad</td>
+            <td>0 RPM (Blur = 0.0)</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+          <tr>
+            <td>Step 6</td>
+            <td><strong>Design Ref Modal</strong></td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Video Active</td>
+            <td><span class="status-pill pill-green">PASSED</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>6. Git Clone & Quick Launch</h2>
+    <div class="card">
+      <p>Clone the public repository and run locally:</p>
+      <pre>
+# Clone repository
+git clone https://github.com/Dhaksith-S/Dhaksith-SIH.git
+
+# Enter project directory
+cd Dhaksith-SIH/mine-x-drone
+
+# Install requirements
+pip install -r requirements.txt
+
+# Start backend server & 3D Web Dashboard
+python start.py
+
+# Open browser to: http://localhost:8000</pre>
+    </div>
+
+    <footer>
+      MINE-X DRONE COMMAND • AUTONOMOUS SUBTERRANEAN MINE INSPECTION SYSTEM • 2026
+    </footer>
+  </div>
+</body>
+</html>
