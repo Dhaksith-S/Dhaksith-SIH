@@ -94,21 +94,21 @@ class MineSimulator:
         self.az = 0.0
         
         # Flight state
-        self.armed = False
+        self.armed = True
         self.flight_mode = "MANUAL"
         self.speed_multiplier = 1.0  # 1.0 normal, 1.8 shift boost, 0.35 ctrl slow
         
         # Battery state
         self.battery_pct = 86.5
         self.battery_voltage = 22.8
-        self.battery_current = 1.8  # Idle current
+        self.battery_current = 4.2  # Nominal hover current
         self.battery_temp = 29.5
         
         # Motor RPMs and ESC states
-        self.motor_rpms = [0.0, 0.0, 0.0, 0.0]
-        self.motor_temps = [28.0, 28.0, 28.0, 28.0]
-        self.esc_temps = [27.0, 27.0, 27.0, 27.0]
-        self.motor_throttles = [0.0, 0.0, 0.0, 0.0]
+        self.motor_rpms = [5200.0, 5200.0, 5200.0, 5200.0]
+        self.motor_temps = [32.0, 32.0, 32.0, 32.0]
+        self.esc_temps = [30.0, 30.0, 30.0, 30.0]
+        self.motor_throttles = [0.45, 0.45, 0.45, 0.45]
         
         # Simulation clock
         self.last_update_time = time.time()
@@ -118,8 +118,8 @@ class MineSimulator:
         # Spherical Cage Geometry & Motion Modes
         self.cage_radius = 1.35
         self.ground_y = 1.35
-        self.ground_contact = True
-        self.motion_mode = "DISARMED"
+        self.ground_contact = False
+        self.motion_mode = "FLIGHT"
         self.target_hover_y = None
 
         # Calibrations status
@@ -226,15 +226,15 @@ class MineSimulator:
         if dist_from_center > safe_r:
             # Soft wall repulsion bounce
             angle = math.atan2(self.y - center_pt[1], self.x - center_pt[0])
-            self.x = center_pt[0] + math.cos(angle) * safe_r
-            self.y = center_pt[1] + math.sin(angle) * safe_r
+            self.x = float(center_pt[0] + math.cos(angle) * safe_r)
+            self.y = float(center_pt[1] + math.sin(angle) * safe_r)
             self.vx *= -0.3
             self.vy *= -0.3
 
         # Ground Floor Clamp & Touchdown logic
         if self.y <= self.ground_y:
-            self.y = self.ground_y
-            self.vy = max(0.0, self.vy)
+            self.y = float(self.ground_y)
+            self.vy = max(0.0, float(self.vy))
             if self.flight_mode == "LAND":
                 self.flight_mode = "MANUAL"
                 self.cmd_vy = 0.0
@@ -247,7 +247,7 @@ class MineSimulator:
 
         # Determine distinct motion mode
         speed_h = math.sqrt(self.vx**2 + self.vz**2)
-        self.ground_contact = (self.y <= (self.ground_y + 0.05))
+        self.ground_contact = bool(self.y <= (self.ground_y + 0.05))
 
         if not self.armed:
             self.motion_mode = "EMERGENCY" if self.flight_mode == "EMERGENCY" else "DISARMED"

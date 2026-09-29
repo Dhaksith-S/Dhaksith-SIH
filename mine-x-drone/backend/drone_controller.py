@@ -21,7 +21,7 @@ class DroneController:
         self.hw = hardware
         
         # Flight state
-        self.armed = False
+        self.armed = True
         self.flight_mode = "MANUAL"
         self.speed_mode = "NORMAL"  # "NORMAL", "BOOST", "PRECISION"
         
@@ -211,6 +211,32 @@ class DroneController:
                 self.sim.flight_mode = "MANUAL"
             logger.info("Fault reset by operator")
             return {"status": "OK", "action": "RESET_FAULT"}
+
+        elif cmd in ["RESET_POSITION", "RESET_DRONE", "RESET"]:
+            self.sim.x = 0.0
+            self.sim.y = 4.5
+            self.sim.z = 25.0
+            self.sim.vx = 0.0
+            self.sim.vy = 0.0
+            self.sim.vz = 0.0
+            self.sim.cmd_vx = 0.0
+            self.sim.cmd_vy = 0.0
+            self.sim.cmd_vz = 0.0
+            self.sim.cmd_yaw_rate = 0.0
+            self.sim.yaw = 0.0
+            self.sim.pitch = 0.0
+            self.sim.roll = 0.0
+            self.armed = True
+            self.sim.armed = True
+            self.flight_mode = "MANUAL"
+            self.sim.flight_mode = "MANUAL"
+            self.active_fault = None
+            self.rth_active = False
+            self.mission_active = False
+            for k in self.keys_pressed:
+                self.keys_pressed[k] = False
+            logger.info("Drone position reset to Portal entrance (x=0, y=4.5, z=25)")
+            return {"status": "OK", "action": "RESET_POSITION", "position": {"x": 0.0, "y": 4.5, "z": 25.0}}
 
         elif cmd == "SET_MODE":
             mode = cmd_data.get("mode", "MANUAL").upper()

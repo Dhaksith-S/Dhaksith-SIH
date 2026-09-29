@@ -162,16 +162,16 @@
 
       <!-- 2x2 Primary Action Grid -->
       <div class="grid grid-cols-2 gap-1.5 relative">
-        <button id="btn-arm-toggle" class="action-grid-btn btn-arm-ready" data-armed="false">
-          <i class="fa-solid fa-power-off"></i> <span id="btn-arm-text">ARM DRONE</span>
+        <button id="btn-arm-toggle" class="action-grid-btn btn-disarm-active" data-armed="true">
+          <i class="fa-solid fa-power-off"></i> <span id="btn-arm-text">DISARM</span>
         </button>
-        <button id="btn-flight-hover" class="action-grid-btn" disabled>
+        <button id="btn-flight-hover" class="action-grid-btn">
           <i class="fa-solid fa-pause"></i> <span>HOVER</span>
         </button>
-        <button id="btn-flight-rth" class="action-grid-btn text-amber-300" disabled>
+        <button id="btn-flight-rth" class="action-grid-btn text-amber-300">
           <i class="fa-solid fa-house-signal"></i> <span>RETURN HOME</span>
         </button>
-        <button id="btn-flight-land" class="action-grid-btn text-slate-300" disabled>
+        <button id="btn-flight-land" class="action-grid-btn text-slate-300">
           <i class="fa-solid fa-plane-arrival"></i> <span>LAND</span>
         </button>
         <!-- Command feedback indicator -->

@@ -24,7 +24,7 @@ from .safety import SafetyManager
 from .sensors import SensorManager
 from .drone_controller import DroneController
 from .telemetry import TelemetryManager
-from .websocket_manager import ConnectionManager
+from .websocket_manager import ConnectionManager, safe_dumps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -136,7 +136,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Send initial full packet
         initial_packet = telemetry.get_current_packet()
-        await websocket.send_json(initial_packet)
+        await websocket.send_text(safe_dumps(initial_packet))
         
         while True:
             data = await websocket.receive_json()
@@ -148,7 +148,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 safety.acknowledge(int(data["alert_id"]))
                 
             # Send immediate command ACK
-            await websocket.send_json({"type": "COMMAND_ACK", "result": res})
+            await websocket.send_text(safe_dumps({"type": "COMMAND_ACK", "result": res}))
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
     except Exception as e:

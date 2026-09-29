@@ -188,7 +188,7 @@ class CommsInterface(ABC):
 class SimulatedFlightController(FlightControllerInterface):
     def __init__(self, simulator_ref=None):
         self.simulator = simulator_ref
-        self.armed = False
+        self.armed = True
         self.flight_mode = "MANUAL"
         self.last_cmd_time = time.time()
         self.calibrating = False

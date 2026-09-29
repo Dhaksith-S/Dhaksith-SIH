@@ -63,11 +63,16 @@ class WebSocketClient {
   }
 
   sendCommand(command, params = {}) {
+    const payload = { command, ...params };
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const payload = { command, ...params };
       this.ws.send(JSON.stringify(payload));
     } else {
-      console.warn("[WebSocket] Not connected. Command queued/dropped:", command);
+      console.warn("[WebSocket] Offline/Connecting. Sending command via HTTP REST fallback:", command);
+      fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(err => console.error("[REST Command] Fallback failed:", err));
     }
   }
 }

@@ -7,8 +7,25 @@ import json
 import logging
 from typing import List, Dict, Any
 from fastapi import WebSocket, WebSocketDisconnect
+import numpy as np
 
 logger = logging.getLogger("WebSocketManager")
+
+def safe_json_default(obj):
+    """Ensure numpy data types and custom objects serialize cleanly to JSON."""
+    if isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    if isinstance(obj, (np.floating, float)):
+        return float(obj)
+    if isinstance(obj, (np.integer, int)):
+        return int(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return str(obj)
+
+def safe_dumps(data: Any) -> str:
+    """Safe JSON stringifier that converts numpy types."""
+    return json.dumps(data, default=safe_json_default)
 
 class ConnectionManager:
     """Manages active WebSockets and handles broadcasting to connected operators."""
@@ -30,7 +47,12 @@ class ConnectionManager:
         if not self.active_connections:
             return
             
-        json_str = json.dumps(data)
+        try:
+            json_str = safe_dumps(data)
+        except Exception as e:
+            logger.error("Error serializing broadcast telemetry: %s", e)
+            return
+
         disconnected = []
         for connection in self.active_connections:
             try:
