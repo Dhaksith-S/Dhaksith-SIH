@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>MINE-X DRONE COMMAND — Autonomous Subterranean Mine Inspection</title>
+  
+  <!-- Tailwind CSS CDN for utility classes -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js (r128) & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Chart.js for real-time telemetry graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts: Rajdhani, Share Tech Mono, Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/dashboard.css?v=20260929_4">
+</head>
+<body class="cad-grid-bg">
+
+  <!-- 3D Canvas Viewport Container -->
+  <div id="viewport-container"></div>
+
+  <!-- Floating 3D Camera Pills (Over 3D Scene) -->
+  <nav class="camera-pill-bar" aria-label="3D View Controls">
+    <button id="btn-view-overview" class="camera-pill-btn active" title="Switch to Overview Perspective">
+      <i class="fa-solid fa-cube text-cyan-400"></i>
+      <span>Overview</span>
+    </button>
+    <button id="btn-view-follow" class="camera-pill-btn" title="Follow Drone Chase Camera">
+      <i class="fa-solid fa-camera"></i>
+      <span>Follow Drone</span>
+    </button>
+    <button id="btn-view-cam" class="camera-pill-btn" title="Toggle Drone Camera Stream">
+      <i class="fa-solid fa-video"></i>
+      <span>Camera</span>
+    </button>
+  </nav>
+
+  <!-- ==========================================
+       TOP STATUS HIERARCHY BAR
+       ========================================== -->
+  <header class="top-command-bar">
+    <!-- Brand / System Title & Source Pill -->
+    <div class="gis-panel rounded-lg px-3 py-1.5 flex items-center space-x-3 shadow-xl">
+      <div class="w-7 h-7 rounded bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-500 text-sm">
+        <i class="fa-solid fa-cube"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xs font-bold tracking-widest text-amber-400 uppercase mono-font">MINE-X DRONE COMMAND</h1>
+          <!-- Independent Simulation / Live Source Pill -->
+          <span id="hud-source-pill" class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-600/50 font-bold mono-font flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> SIMULATION
+          </span>
+        </div>
+        <div class="text-[9px] text-slate-400 font-medium">Autonomous Subterranean Mine Inspection • Titan Cavern Survey</div>
+      </div>
+    </div>
+
+    <!-- Independent Status Strip: Connection, Arm State, Mode, Position, Battery -->
+    <div class="gis-panel rounded-lg px-3 py-1.5 flex items-center space-x-3 mono-font text-xs shadow-xl">
+      <!-- 1. Connection Status -->
+      <div id="hud-conn-pill" class="flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/60">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1.5"></span> ONLINE
+      </div>
+
+      <!-- 2. Arm State (Disarmed / Armed) -->
+      <div id="hud-armed-pill" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">
+        DISARMED
+      </div>
+
+      <!-- 3. Operating Mode -->
+      <div class="flex flex-col">
+        <span class="text-[8px] text-slate-400 uppercase">MODE</span>
+        <span id="hud-flight-mode" class="text-cyan-400 font-bold text-[11px]">MANUAL</span>
+      </div>
+
+      <div class="h-5 w-px bg-slate-800"></div>
+
+      <!-- 4. Coordinates / Position -->
+      <div class="flex items-center gap-2 text-[10px]">
+        <div class="flex flex-col">
+          <span class="text-[8px] text-slate-400">EAST (X)</span>
+          <span id="coord-x" class="text-slate-200 font-bold">0.0 m</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[8px] text-slate-400">ELEV (Y)</span>
+          <span id="coord-y" class="text-cyan-400 font-bold">0.3 m</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[8px] text-slate-400">DEPTH (Z)</span>
+          <span id="coord-z" class="text-amber-400 font-bold">28.1 m</span>
+        </div>
+      </div>
+
+      <div class="h-5 w-px bg-slate-800"></div>
+
+      <!-- 5. Battery Quick Pill -->
+      <div class="flex items-center gap-1.5">
+        <i class="fa-solid fa-battery-three-quarters text-emerald-400 text-sm"></i>
+        <span id="batt-pct" class="text-emerald-400 font-bold text-xs">85.6%</span>
+      </div>
+    </div>
+
+    <!-- Quick Action Header Buttons: Hardware, Calibration, Tools -->
+    <div class="flex items-center gap-1.5">
+      <button id="btn-open-hardware" class="py-1.5 px-2.5 rounded bg-slate-900/90 hover:bg-slate-800 text-amber-400 border border-amber-700/50 font-bold text-xs mono-font flex items-center gap-1.5 shadow">
+        <i class="fa-solid fa-microchip"></i> HARDWARE
+      </button>
+      <button id="btn-open-calibration" class="py-1.5 px-2.5 rounded bg-slate-900/90 hover:bg-slate-800 text-cyan-400 border border-cyan-700/50 font-bold text-xs mono-font flex items-center gap-1.5 shadow">
+        <i class="fa-solid fa-compass-drafting"></i> CALIBRATION
+      </button>
+      <button id="btn-export-telemetry" class="py-1.5 px-2.5 rounded bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold text-xs mono-font flex items-center gap-1.5 shadow" title="Export Telemetry to CSV">
+        <i class="fa-solid fa-file-arrow-down"></i> CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================
+       ACTIVE FAULT / EMERGENCY BANNER (Dynamic)
+       ========================================== -->
+  <div id="fault-banner" class="fault-banner hidden">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-triangle-exclamation text-red-500 text-base animate-pulse"></i>
+      <span class="text-xs font-bold text-red-400 uppercase tracking-wider mono-font">ACTIVE FAULT:</span>
+      <span id="fault-cause" class="text-xs font-semibold text-slate-200 mono-font">ESTOP TRIGGERED BY OPERATOR</span>
+    </div>
+    <div class="h-4 w-px bg-red-900/80"></div>
+    <div class="flex items-center gap-3 text-[10px] mono-font text-slate-300">
+      <div>TIME: <span id="fault-timestamp" class="text-amber-300 font-bold">18:40:00</span></div>
+      <div>STATUS: <span id="fault-recovery-status" class="text-red-400 font-bold">LATCHED - DISARM TO CLEAR</span></div>
+    </div>
+    <button id="btn-reset-fault" class="fault-btn-reset">
+      <i class="fa-solid fa-rotate-left mr-1"></i> RESET FAULT
+    </button>
+  </div>
+
+  <!-- ==========================================
+       LEFT SIDEBAR: CONDENSED FLIGHT CONTROLS & ATTITUDE
+       ========================================== -->
+  <aside class="left-command-sidebar custom-scroll">
+
+    <!-- 1. FLIGHT CONTROL PANEL -->
+    <div class="gis-panel rounded-lg p-2.5 flex flex-col gap-2">
+      <div class="flex items-center justify-between pb-1.5 border-b border-slate-800">
+        <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider mono-font flex items-center gap-1.5">
+          <i class="fa-solid fa-gamepad"></i> Flight Control
+        </span>
+        <div class="flex items-center gap-1">
+          <button id="btn-speed-normal" class="py-0.5 px-2 rounded bg-amber-600 text-white font-bold text-[9px] shadow">1x</button>
+          <button id="btn-speed-boost" class="py-0.5 px-2 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 font-semibold text-[9px]" title="Boost Mode (Shift)">2x</button>
+          <button id="btn-speed-precision" class="py-0.5 px-2 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 font-semibold text-[9px]" title="Precision Mode (Ctrl)">0.4x</button>
+        </div>
+      </div>
+
+      <!-- 2x2 Primary Action Grid -->
+      <div class="grid grid-cols-2 gap-1.5 relative">
+        <button id="btn-arm-toggle" class="action-grid-btn btn-arm-ready" data-armed="false">
+          <i class="fa-solid fa-power-off"></i> <span id="btn-arm-text">ARM DRONE</span>
+        </button>
+        <button id="btn-flight-hover" class="action-grid-btn" disabled>
+          <i class="fa-solid fa-pause"></i> <span>HOVER</span>
+        </button>
+        <button id="btn-flight-rth" class="action-grid-btn text-amber-300" disabled>
+          <i class="fa-solid fa-house-signal"></i> <span>RETURN HOME</span>
+        </button>
+        <button id="btn-flight-land" class="action-grid-btn text-slate-300" disabled>
+          <i class="fa-solid fa-plane-arrival"></i> <span>LAND</span>
+        </button>
+        <!-- Command feedback indicator -->
+        <div id="cmd-feedback-chip" class="hidden command-feedback-flash feedback-success"></div>
+      </div>
+
+      <!-- Prominent Emergency Stop Button -->
+      <button id="btn-emergency-stop" class="estop-btn py-2 px-3 rounded text-white font-extrabold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg">
+        <i class="fa-solid fa-triangle-exclamation text-sm"></i>
+        <span>EMERGENCY STOP (SPACE)</span>
+      </button>
+
+      <!-- Flight Mode Selector -->
+      <div class="flex items-center justify-between pt-1 border-t border-slate-800">
+        <span class="text-[10px] text-slate-400 mono-font font-semibold">FLIGHT MODE:</span>
+        <select id="select-flight-mode" class="bg-slate-900 border border-slate-700 text-amber-400 font-bold text-xs rounded px-2 py-0.5 focus:outline-none focus:border-amber-500">
+          <option value="MANUAL">MANUAL</option>
+          <option value="STABILIZE">STABILIZE</option>
+          <option value="ALTITUDE_HOLD">ALTITUDE HOLD</option>
+          <option value="POSITION_HOLD">POSITION HOLD</option>
+          <option value="AUTONOMOUS">AUTONOMOUS</option>
+          <option value="RETURN_TO_HOME">RETURN TO HOME</option>
+          <option value="EMERGENCY">EMERGENCY</option>
+        </select>
+      </div>
+
+      <!-- Collapsible Keyboard Shortcuts -->
+      <div class="flex flex-col gap-1 mt-1">
+        <div id="accordion-header-shortcuts" class="accordion-header">
+          <span class="text-[10px] font-bold text-slate-300 mono-font flex items-center gap-1.5">
+            <i class="fa-solid fa-keyboard text-slate-400"></i> KEYBOARD CONTROLS
+          </span>
+          <i id="accordion-icon-shortcuts" class="fa-solid fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
+        </div>
+
+        <div id="accordion-content-shortcuts" class="accordion-content flex flex-col gap-1.5 pt-1">
+          <!-- Shortcuts Legend -->
+          <div class="space-y-1 mono-font text-[10px] text-slate-300 bg-slate-950/60 p-2 rounded border border-slate-800/80">
+            <div class="flex justify-between">
+              <span class="text-amber-400 font-bold">WASD</span>
+              <span class="text-slate-400">Move (W / A / S / D)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-cyan-400 font-bold">Q / E</span>
+              <span class="text-slate-400">Ascend / Descend</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-emerald-400 font-bold">R</span>
+              <span class="text-slate-400">Arm Drone</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-300 font-bold">F</span>
+              <span class="text-slate-400">Hover</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400 font-bold">Shift</span>
+              <span class="text-slate-400">Precision Speed</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400 font-bold">Ctrl</span>
+              <span class="text-slate-400">Normal Speed</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-red-400 font-bold">Space</span>
+              <span class="text-slate-400">Emergency Stop</span>
+            </div>
+          </div>
+
+          <!-- Keycap Visualizer -->
+          <div class="bg-slate-950/90 p-2 rounded border border-slate-800/80 flex flex-col items-center gap-1.5">
+            <div class="flex items-center gap-1.5">
+              <div id="key-q" class="keycap" title="Rotate Left">Q</div>
+              <div id="key-w" class="keycap text-amber-400" title="Forward">W</div>
+              <div id="key-e" class="keycap" title="Rotate Right">E</div>
+              <div class="w-1.5"></div>
+              <div id="key-r" class="keycap text-cyan-400" title="Ascend">R</div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div id="key-a" class="keycap text-amber-400" title="Left">A</div>
+              <div id="key-s" class="keycap text-amber-400" title="Backward">S</div>
+              <div id="key-d" class="keycap text-amber-400" title="Right">D</div>
+              <div class="w-1.5"></div>
+              <div id="key-f" class="keycap text-cyan-400" title="Descend">F</div>
+            </div>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <div id="key-shift" class="keycap keycap-wide text-[9px]" title="Boost">SHIFT</div>
+              <div id="key-ctrl" class="keycap keycap-wide text-[9px]" title="Precision">CTRL</div>
+              <div id="key-space" class="keycap keycap-wide text-red-400 text-[9px]" title="Emergency Stop">SPACE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. IMU 3D ARTIFICIAL HORIZON & ATTITUDE -->
+    <div class="gis-panel rounded-lg p-2.5 flex flex-col gap-2">
+      <span class="text-[10px] font-bold text-amber-400 uppercase tracking-widest mono-font flex items-center justify-between">
+        <span>IMU Artificial Horizon</span>
+        <i class="fa-solid fa-crosshairs text-slate-400"></i>
+      </span>
+
+      <div class="flex items-center justify-around gap-2 bg-slate-950/70 p-2 rounded border border-slate-800">
+        <!-- Attitude Sphere -->
+        <div class="attitude-gauge">
+          <div id="attitude-sky-ground" class="attitude-sky-ground"></div>
+          <div class="attitude-crosshair"></div>
+        </div>
+
+        <!-- Roll / Pitch / Yaw Readouts -->
+        <div class="flex flex-col gap-1 mono-font text-[11px]">
+          <div class="flex justify-between gap-3">
+            <span class="text-slate-400">ROLL:</span>
+            <span id="hud-roll" class="text-amber-400 font-bold">+0.0°</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-slate-400">PITCH:</span>
+            <span id="hud-pitch" class="text-cyan-400 font-bold">-0.0°</span>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span class="text-slate-400">YAW:</span>
+            <span id="hud-yaw" class="text-emerald-400 font-bold">180.0°</span>
+          </div>
+          <div class="flex justify-between gap-3 pt-1 border-t border-slate-800">
+            <span class="text-slate-500">STATUS:</span>
+            <span class="text-emerald-400 text-[10px] font-bold">9-DOF LOCK</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Collapsible 6-Direction Obstacle Rangefinders (ToF) -->
+    <div class="gis-panel rounded-lg p-2 flex flex-col gap-1">
+      <div id="accordion-header-tof" class="accordion-header">
+        <span class="text-[10px] font-bold text-slate-300 mono-font flex items-center gap-1.5">
+          <i class="fa-solid fa-arrows-to-dot text-slate-400"></i> OBSTACLE DISTANCES (ToF)
+        </span>
+        <i id="accordion-icon-tof" class="fa-solid fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
+      </div>
+
+      <div id="accordion-content-tof" class="accordion-content flex flex-col gap-1.5 pt-1">
+        <div class="bg-slate-950/80 p-2 rounded border border-slate-800 flex items-center justify-center">
+          <div class="obstacle-cross">
+            <div></div>
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">UP</span>
+              <span id="dist-up" class="dist-pill safe">11.0m</span>
+            </div>
+            <div></div>
+
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">LEFT</span>
+              <span id="dist-left" class="dist-pill safe">8.5m</span>
+            </div>
+            <div class="text-[10px] font-bold text-amber-400 mono-font flex items-center justify-center">
+              <i class="fa-solid fa-drone text-base"></i>
+            </div>
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">RIGHT</span>
+              <span id="dist-right" class="dist-pill safe">8.5m</span>
+            </div>
+
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">REAR</span>
+              <span id="dist-rear" class="dist-pill safe">14.2m</span>
+            </div>
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">DOWN</span>
+              <span id="dist-down" class="dist-pill safe">4.2m</span>
+            </div>
+            <div class="flex flex-col items-center">
+              <span class="text-[8px] text-slate-400">FRONT</span>
+              <span id="dist-front" class="dist-pill safe">18.5m</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Collapsible System / Hardware Quick Status -->
+    <div class="gis-panel rounded-lg p-2 flex flex-col gap-1">
+      <div id="accordion-header-system" class="accordion-header">
+        <span class="text-[10px] font-bold text-slate-300 mono-font flex items-center gap-1.5">
+          <i class="fa-solid fa-sliders text-slate-400"></i> SYSTEM / HARDWARE
+        </span>
+        <i id="accordion-icon-system" class="fa-solid fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
+      </div>
+
+      <div id="accordion-content-system" class="accordion-content collapsed flex flex-col gap-1.5 pt-1 mono-font text-[10px]">
+        <div class="bg-slate-950/80 p-2 rounded border border-slate-800 space-y-1">
+          <div class="flex justify-between">
+            <span class="text-slate-400">FC FIRMWARE:</span>
+            <span class="text-slate-200">ArduPilot / MINE-X v4.5</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">BUS RATE:</span>
+            <span class="text-emerald-400">CAN 1Mbps (OK)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">MESH COMMS:</span>
+            <span id="comms-rssi" class="text-cyan-400">-58 dBm</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">STORAGE:</span>
+            <span class="text-slate-200">512GB NVMe (44% Used)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Spherical Drone Design Reference -->
+    <div class="gis-panel rounded-lg p-2 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-circle-play text-amber-400 text-sm"></i>
+        <div>
+          <div class="text-[10px] font-bold text-slate-200 mono-font">DRONE DESIGN REF</div>
+          <div class="text-[8px] text-slate-400">10s Spherical Drone Clip</div>
+        </div>
+      </div>
+      <button id="btn-open-design-ref" class="py-1 px-2.5 rounded bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 border border-amber-600/50 font-bold text-[9px] mono-font flex items-center gap-1.5 shadow transition-colors">
+        <i class="fa-solid fa-play text-[8px]"></i> VIEW CLIP
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ==========================================
+       RIGHT SIDEBAR: GEOSPATIAL RADAR & ATMOSPHERIC MONITOR
+       ========================================== -->
+  <aside class="right-command-sidebar custom-scroll">
+
+    <!-- 1. TOP-DOWN GEOSPATIAL RADAR PLAN -->
+    <div class="gis-panel rounded-lg p-2.5 flex flex-col gap-1.5">
+      <div class="flex items-center justify-between pb-1 border-b border-slate-800">
+        <span class="mono-font font-bold text-amber-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+          <i class="fa-solid fa-compass"></i> GEOSPATIAL MINE RADAR
+        </span>
+        <span class="text-[9px] text-cyan-400 mono-font">1:500 CAD TRACK</span>
+      </div>
+
+      <div class="relative w-full h-36 bg-slate-950 rounded border border-slate-800 overflow-hidden flex items-center justify-center">
+        <canvas id="radar-canvas" width="300" height="144" class="w-full h-full block"></canvas>
+      </div>
+
+      <div class="flex justify-between items-center text-[10px] text-slate-400 mono-font pt-0.5">
+        <span>DRIFT: 240m</span>
+        <span>BENCH: -160m RL</span>
+      </div>
+    </div>
+
+    <!-- 2. DEDICATED ATMOSPHERIC MONITOR -->
+    <div class="gis-panel rounded-lg p-2.5 flex flex-col gap-2">
+      <div class="flex items-center justify-between pb-1 border-b border-slate-800">
+        <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider mono-font flex items-center gap-1.5">
+          <i class="fa-solid fa-biohazard"></i> ATMOSPHERIC MONITOR
+        </span>
+        <!-- Conditional Status Wording -->
+        <div id="gas-overall-status" class="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 font-bold mono-font text-[9px]">
+          READINGS WITHIN SIMULATED THRESHOLDS
+        </div>
+      </div>
+
+      <!-- Simulation Warning Notice -->
+      <div class="px-2 py-1.5 rounded bg-amber-950/30 border border-amber-900/50 text-[9px] text-amber-300 mono-font flex items-start gap-1.5">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5"></i>
+        <div>
+          <span class="font-bold">SIMULATED — NOT CERTIFIED</span>
+          <div class="text-[8px] text-slate-400">Simulation data - Not a certified mine life-safety meter</div>
+        </div>
+      </div>
+
+      <!-- 5 Gas Sensors Matrix -->
+      <div class="space-y-1.5 mono-font text-xs">
+        <!-- 1. CH4 Methane -->
+        <div id="gas-row-ch4" class="p-1.5 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-slate-300 font-semibold">METHANE (CH₄)</span>
+            <span class="text-[8px] text-slate-500">Threshold: 0.50%</span>
+          </div>
+          <div id="gas-ch4-val" class="font-bold text-emerald-400 text-xs">0.028 %</div>
+          <span id="gas-ch4-pill" class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-semibold">NORMAL</span>
+        </div>
+
+        <!-- 2. CO Carbon Monoxide -->
+        <div id="gas-row-co" class="p-1.5 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-slate-300 font-semibold">CARBON MONOXIDE (CO)</span>
+            <span class="text-[8px] text-slate-500">Threshold: 25 ppm</span>
+          </div>
+          <div id="gas-co-val" class="font-bold text-slate-200 text-xs">3.9 ppm</div>
+          <span id="gas-co-pill" class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-semibold">NORMAL</span>
+        </div>
+
+        <!-- 3. CO2 Carbon Dioxide -->
+        <div id="gas-row-co2" class="p-1.5 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-slate-300 font-semibold">CARBON DIOXIDE (CO₂)</span>
+            <span class="text-[8px] text-slate-500">Threshold: 1000 ppm</span>
+          </div>
+          <div id="gas-co2-val" class="font-bold text-slate-200 text-xs">512 ppm</div>
+          <span id="gas-co2-pill" class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-semibold">NORMAL</span>
+        </div>
+
+        <!-- 4. O2 Oxygen -->
+        <div id="gas-row-o2" class="p-1.5 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-slate-300 font-semibold">OXYGEN (O₂)</span>
+            <span class="text-[8px] text-slate-500">Safe Min: 19.5%</span>
+          </div>
+          <div id="gas-o2-val" class="font-bold text-cyan-400 text-xs">20.8 %</div>
+          <span id="gas-o2-pill" class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-semibold">NORMAL</span>
+        </div>
+
+        <!-- 5. H2S Hydrogen Sulfide -->
+        <div id="gas-row-h2s" class="p-1.5 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-slate-300 font-semibold">HYDROGEN SULFIDE (H₂S)</span>
+            <span class="text-[8px] text-slate-500">Threshold: 10 ppm</span>
+          </div>
+          <div id="gas-h2s-val" class="font-bold text-slate-200 text-xs">0.0 ppm</div>
+          <span id="gas-h2s-pill" class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-semibold">NORMAL</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Safety Alerts Summary Strip -->
+    <div class="gis-panel rounded-lg p-2 flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider mono-font flex items-center gap-1.5">
+          <i class="fa-solid fa-bell text-amber-500"></i> SAFETY ALERTS
+        </span>
+        <span id="safety-alert-badge" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold mono-font text-[9px]">
+          0 ACTIVE
+        </span>
+      </div>
+      <div id="safety-alerts-list" class="max-h-20 overflow-y-auto custom-scroll text-[10px] mono-font">
+        <div class="text-slate-500 py-1 text-center italic">All Safety Parameters Nominal</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ==========================================
+       FLOATING DRONE CAMERA PiP FEED (Toggled via Camera Pill)
+       ========================================== -->
+  <div id="camera-pip-card" class="camera-pip-card">
+    <div class="camera-pip-header">
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-video text-cyan-400"></i> DRONE CAMERA (FOLLOW)
+      </span>
+      <button id="btn-pip-close" class="text-slate-400 hover:text-white" title="Close Camera PiP">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="relative w-full h-[calc(100%-24px)] bg-black overflow-hidden">
+      <canvas id="camera-feed-canvas" width="240" height="120" class="w-full h-full block"></canvas>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       BOTTOM TELEMETRY DECK (Redesigned)
+       Compact Metric Cards (Left) + Dedicated Trend Chart (Right)
+       ========================================== -->
+  <footer class="bottom-telemetry-deck">
+    
+    <!-- 1. Left: 4 Compact Metric Cards -->
+    <div class="metric-cards-container">
+      
+      <!-- Card 1: Altitude -->
+      <div id="card-metric-altitude" class="telemetry-card selected" data-metric="altitude">
+        <div class="card-header">
+          <i class="fa-solid fa-mountain text-cyan-400"></i>
+          <span>ALTITUDE</span>
+        </div>
+        <div id="telem-altitude" class="card-value text-cyan-400">0.35 m</div>
+        <div class="card-gauge-box">
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="gauge-altitude-fill" class="bg-cyan-400 h-full transition-all duration-200" style="width: 7%;"></div>
+          </div>
+          <span class="text-[8px] text-slate-500 mono-font">5m</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Battery -->
+      <div id="card-metric-battery" class="telemetry-card" data-metric="battery">
+        <div class="card-header">
+          <i class="fa-solid fa-bolt text-emerald-400"></i>
+          <span>BATTERY</span>
+        </div>
+        <div id="card-batt-pct" class="card-value text-emerald-400">85.6 %</div>
+        <div class="card-gauge-box">
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="gauge-battery-fill" class="bg-emerald-400 h-full transition-all duration-200" style="width: 85.6%;"></div>
+          </div>
+          <span class="text-[8px] text-slate-500 mono-font">6S</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Velocity -->
+      <div id="card-metric-velocity" class="telemetry-card" data-metric="velocity">
+        <div class="card-header">
+          <i class="fa-solid fa-gauge-high text-amber-400"></i>
+          <span>VELOCITY</span>
+        </div>
+        <div id="telem-velocity" class="card-value text-amber-400">0.0 m/s</div>
+        <div class="card-gauge-box">
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="gauge-velocity-fill" class="bg-amber-400 h-full transition-all duration-200" style="width: 0%;"></div>
+          </div>
+          <span class="text-[8px] text-slate-500 mono-font">5m/s</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Methane -->
+      <div id="card-metric-methane" class="telemetry-card" data-metric="methane">
+        <div class="card-header">
+          <i class="fa-solid fa-circle-nodes text-emerald-400"></i>
+          <span>METHANE</span>
+        </div>
+        <div id="card-methane-val" class="card-value text-emerald-400">0.028 %</div>
+        <div class="card-gauge-box">
+          <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 mono-font font-bold">NORMAL</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 2. Right: Dedicated Trend Chart with Independent Scale -->
+    <div class="dedicated-chart-panel">
+      <div class="chart-header">
+        <div class="chart-title-tag">
+          <i id="chart-metric-icon" class="fa-solid fa-chart-line text-cyan-400"></i>
+          <span id="chart-metric-label">ALTITUDE (m)</span>
+        </div>
+
+        <!-- Time Range Selector -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-[9px] text-slate-400 mono-font mr-1">TIME RANGE</span>
+          <button id="btn-timescale-10" class="time-range-btn">10s</button>
+          <button id="btn-timescale-30" class="time-range-btn">30s</button>
+          <button id="btn-timescale-60" class="time-range-btn active">1m</button>
+          <button id="btn-timescale-300" class="time-range-btn">5m</button>
+        </div>
+      </div>
+
+      <div class="chart-canvas-box">
+        <canvas id="telemetry-chart-canvas"></canvas>
+      </div>
+    </div>
+
+  </footer>
+
+  <!-- ==========================================
+       MODAL 1: HARDWARE INSPECTOR MODAL
+       ========================================== -->
+  <div id="modal-hardware-inspector" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="gis-panel rounded-xl p-4 max-w-4xl w-full border border-amber-500/80 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-microchip text-amber-500 text-lg"></i>
+          <h3 class="font-bold text-amber-400 mono-font text-base">INDIVIDUAL HARDWARE INSPECTOR</h3>
+        </div>
+        <button id="btn-close-hardware" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="hardware-inspector-content" class="max-h-[70vh] overflow-y-auto custom-scroll pr-1">
+        <!-- Dynamically injected via dashboard.js populateHardwareInspector() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 2: SENSOR CALIBRATION MODAL
+       ========================================== -->
+  <div id="modal-calibration" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="gis-panel rounded-xl p-4 max-w-md w-full border border-cyan-500/80 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-compass-drafting text-cyan-400 text-lg"></i>
+          <h3 class="font-bold text-cyan-300 mono-font text-base">SENSOR ZERO-CALIBRATION</h3>
+        </div>
+        <button id="btn-close-calibration" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-400">Zero and calibrate internal sensor biases before mine traversal.</p>
+
+      <div class="space-y-2 mono-font text-xs">
+        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-slate-200">9-DOF AHRS IMU</div>
+            <div class="text-[10px] text-slate-500">Gyro Bias & Accel Gravity Leveling</div>
+          </div>
+          <button id="btn-cal-imu" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs border border-slate-700">
+            CALIBRATE
+          </button>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-slate-200">Solid-State LiDAR</div>
+            <div class="text-[10px] text-slate-500">Zero Azimuth & Laser Diode Alignment</div>
+          </div>
+          <button id="btn-cal-lidar" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs border border-slate-700">
+            CALIBRATE
+          </button>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-slate-200">Barometric Altimeter</div>
+            <div class="text-[10px] text-slate-500">Tare Sea-Level QNH Reference</div>
+          </div>
+          <button id="btn-cal-barometer" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs border border-slate-700">
+            CALIBRATE
+          </button>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-slate-200">Multi-Gas Array (CH₄/CO/O₂)</div>
+            <div class="text-[10px] text-slate-500">Clean Air Baseline Tare & Span</div>
+          </div>
+          <button id="btn-cal-gas" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs border border-slate-700">
+            ZERO TARE
+          </button>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-slate-200">Optical RGB Gimbal</div>
+            <div class="text-[10px] text-slate-500">Gimbal Horizon Tare & Focus Calibration</div>
+          </div>
+          <button id="btn-cal-camera" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs border border-slate-700">
+            CALIBRATE
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 3: DESIGN REFERENCE VIDEO MODAL (10s Clip)
+       ========================================== -->
+  <div id="modal-design-reference" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="gis-panel rounded-xl p-4 max-w-xl w-full border border-amber-500/80 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-circle-play text-amber-500 text-lg"></i>
+          <h3 class="font-bold text-amber-400 mono-font text-base">SPHERICAL DRONE DESIGN REFERENCE</h3>
+        </div>
+        <button id="btn-close-design-ref" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-300">
+        10-second reference clip demonstrating spherical protective cage, internal quadcopter flight body, forward optical inspection camera, twin searchlights, and ground rolling traversal.
+      </p>
+
+      <div class="relative w-full rounded-lg overflow-hidden border border-slate-800 bg-black aspect-video flex items-center justify-center">
+        <video id="design-ref-video" src="/static/assets/reference_drone_video.mp4" controls loop muted playsinline class="w-full h-full object-contain"></video>
+      </div>
+
+      <div class="flex justify-between items-center text-[10px] text-slate-400 mono-font pt-1 border-t border-slate-800">
+        <span>CAGE: R=1.35m OPEN CARBON GEODESIC</span>
+        <span>DRIVE: CONCEALED RING TRACTION</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-lg bg-slate-900/95 border border-amber-500/70 text-amber-300 text-xs tracking-wider shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none mono-font flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toast-text">System Initialized</span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/drone3d.js"></script>
+  <script src="/static/js/controls.js"></script>
+  <script src="/static/js/telemetry.js"></script>
+  <script src="/static/js/sensors.js"></script>
+  <script src="/static/js/radar.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

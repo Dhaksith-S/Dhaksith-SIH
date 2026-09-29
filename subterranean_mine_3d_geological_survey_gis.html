@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Subterranean Mine 3D Spatial GIS & Geological Survey Map</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js (r128), OrbitControls, and Tween.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+  <!-- Technical Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #040303;
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      color: #ede2d5;
+    }
+    .mono-font {
+      font-family: 'Share Tech Mono', monospace;
+    }
+    #viewport-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    /* Technical Glassmorphism Panels */
+    .gis-panel {
+      background: rgba(13, 11, 9, 0.90);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(217, 119, 6, 0.32);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), inset 0 0 16px rgba(245, 158, 11, 0.04);
+    }
+    .gis-panel:hover {
+      border-color: rgba(245, 158, 11, 0.55);
+    }
+    .gis-border-glow {
+      box-shadow: 0 0 15px rgba(217, 119, 6, 0.25);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(245, 158, 11, 0.45);
+      border-radius: 4px;
+    }
+    /* Subterranean Blueprint Grid overlay */
+    .cad-grid-bg {
+      background-image: 
+        linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .compass-needle {
+      transition: transform 0.08s ease-out;
+    }
+    /* Pulse glow ring */
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); opacity: 0.85; }
+      50% { transform: scale(1.15); opacity: 0.35; }
+    }
+    .ping-glow {
+      animation: pulseGlow 2.4s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="cad-grid-bg">
+  <!-- 3D Canvas Viewport -->
+  <div id="viewport-container"></div>
+
+  <!-- Top GIS Navigation & Survey Telemetry Header -->
+  <header class="absolute top-2.5 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none">
+    <!-- Mine Site Identification -->
+    <div class="gis-panel rounded-lg px-4 py-2 pointer-events-auto flex items-center space-x-3.5 border-l-4 border-l-amber-500">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 ping-glow"></div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold tracking-widest text-amber-500 uppercase mono-font">TITAN-CAVERN SPATIAL GIS</span>
+          <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-800 mono-font font-bold">DRONE-GRADE LIDAR MAP</span>
+        </div>
+        <div class="text-[11px] text-zinc-300 font-medium">Red Terracotta Ore System • 3D Geological Sub-surface Survey</div>
+      </div>
+    </div>
+
+    <!-- Live Surveyor Coordinates & Depth Strip -->
+    <div class="gis-panel rounded-lg px-4 py-2 pointer-events-auto flex items-center space-x-4 mono-font text-xs">
+      <div class="flex flex-col">
+        <span class="text-[9px] text-zinc-400">CAMERA X (EAST)</span>
+        <span id="coord-x" class="text-amber-400 font-bold text-sm">0.0 m</span>
+      </div>
+      <div class="h-6 w-px bg-zinc-800"></div>
+      <div class="flex flex-col">
+        <span class="text-[9px] text-zinc-400">CAMERA Y (RL / ELEV)</span>
+        <span id="coord-y" class="text-cyan-400 font-bold text-sm">+8.2 m</span>
+      </div>
+      <div class="h-6 w-px bg-zinc-800"></div>
+      <div class="flex flex-col">
+        <span class="text-[9px] text-zinc-400">DEPTH Z (INBY)</span>
+        <span id="coord-z" class="text-amber-300 font-bold text-sm">-45.0 m</span>
+      </div>
+      <div class="h-6 w-px bg-zinc-800"></div>
+      <div class="flex flex-col">
+        <span class="text-[9px] text-zinc-400">ACTIVE SECTOR</span>
+        <span id="hud-sector" class="text-emerald-400 font-bold text-sm">Great Stope</span>
+      </div>
+      <div class="h-6 w-px bg-zinc-800"></div>
+      <div class="flex flex-col">
+        <span class="text-[9px] text-zinc-400">SPAN CLEARANCE</span>
+        <span id="hud-clearance" class="text-amber-400 font-bold text-sm">48.5 m DIA</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left Side: Map View Modes, Tools & Sector Bookmarks -->
+  <aside class="absolute left-3 top-16 bottom-3 z-30 flex flex-col gap-2.5 pointer-events-auto w-72 text-xs">
+    <!-- Camera Projection & Survey View Selector -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2">
+      <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mono-font flex items-center justify-between">
+        <span>Survey Camera Modes</span>
+        <i class="fa-solid fa-camera-rotate"></i>
+      </span>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button id="btn-view-orbit" class="py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow hover:bg-amber-500">
+          <i class="fa-solid fa-cube"></i> 3D Orbit
+        </button>
+        <button id="btn-view-top" class="py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all">
+          <i class="fa-solid fa-map"></i> Top Plan
+        </button>
+        <button id="btn-view-side" class="py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all">
+          <i class="fa-solid fa-chart-area"></i> Side Cut
+        </button>
+        <button id="btn-view-fly" class="py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all">
+          <i class="fa-solid fa-paper-plane"></i> Spline Fly
+        </button>
+      </div>
+      <div class="flex gap-1.5 mt-1">
+        <button id="btn-tool-ruler" class="flex-1 py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all">
+          <i class="fa-solid fa-ruler"></i> <span id="ruler-btn-txt">Ruler Tool (Off)</span>
+        </button>
+        <button id="btn-reset-cam" class="py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300" title="Reset View">
+          <i class="fa-solid fa-arrows-to-dot"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Interactive Waypoint / Sector Bookmarks -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2 flex-1 overflow-hidden">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-bold text-amber-500 uppercase tracking-wider mono-font">Sectors & Survey Stations</span>
+        <span class="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 mono-font">5 STATIONS</span>
+      </div>
+      <p class="text-[11px] text-zinc-400">Click a sector to navigate the survey camera and read telemetry.</p>
+
+      <div class="flex flex-col gap-1.5 overflow-y-auto custom-scroll pr-1">
+        <button data-sector-idx="0" class="sector-card text-left p-2 rounded bg-amber-600/25 border border-amber-500/60 hover:bg-amber-600/35 transition-all flex flex-col gap-0.5 shadow-sm">
+          <div class="flex items-center justify-between font-bold text-amber-300">
+            <span>1. Portal Entrance Arch</span>
+            <span class="mono-font text-[10px] text-amber-400">Z: +18m</span>
+          </div>
+          <span class="text-[10px] text-zinc-400">Span: 28m • Timber Collar • Surface daylight</span>
+        </button>
+
+        <button data-sector-idx="1" class="sector-card text-left p-2 rounded bg-zinc-800/60 border border-zinc-700/60 hover:bg-zinc-700/80 transition-all flex flex-col gap-0.5">
+          <div class="flex items-center justify-between font-bold text-zinc-200">
+            <span>2. Western Timber Corridor</span>
+            <span class="mono-font text-[10px] text-amber-400">Z: -25m</span>
+          </div>
+          <span class="text-[10px] text-zinc-400">Span: 32m • Square-set frames • Rail split</span>
+        </button>
+
+        <button data-sector-idx="2" class="sector-card text-left p-2 rounded bg-zinc-800/60 border border-zinc-700/60 hover:bg-zinc-700/80 transition-all flex flex-col gap-0.5">
+          <div class="flex items-center justify-between font-bold text-zinc-200">
+            <span>3. Grand Extraction Stope</span>
+            <span class="mono-font text-[10px] text-cyan-400">Z: -72m</span>
+          </div>
+          <span class="text-[10px] text-zinc-400">Span: 52m • Giant cavern dome • Central pillar</span>
+        </button>
+
+        <button data-sector-idx="3" class="sector-card text-left p-2 rounded bg-zinc-800/60 border border-zinc-700/60 hover:bg-zinc-700/80 transition-all flex flex-col gap-0.5">
+          <div class="flex items-center justify-between font-bold text-zinc-200">
+            <span>4. North-East Ore Chute</span>
+            <span class="mono-font text-[10px] text-emerald-400">Z: -118m</span>
+          </div>
+          <span class="text-[10px] text-zinc-400">Span: 36m • High ceiling slot • Vent ducts</span>
+        </button>
+
+        <button data-sector-idx="4" class="sector-card text-left p-2 rounded bg-zinc-800/60 border border-zinc-700/60 hover:bg-zinc-700/80 transition-all flex flex-col gap-0.5">
+          <div class="flex items-center justify-between font-bold text-zinc-200">
+            <span>5. Deep Abyss Winze Shaft</span>
+            <span class="mono-font text-[10px] text-purple-400">Z: -168m</span>
+          </div>
+          <span class="text-[10px] text-zinc-400">Span: 42m • Vertical drop shaft • Sump basin</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Measurement Caliper & Clearance Sensor -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2">
+      <span class="text-[10px] font-bold text-amber-500 uppercase tracking-wider mono-font flex items-center justify-between">
+        <span>Click-to-Measure Clearance</span>
+        <i class="fa-solid fa-ruler-combined"></i>
+      </span>
+      <div class="bg-zinc-950/70 p-2 rounded border border-zinc-800 font-mono text-[11px] flex flex-col gap-1">
+        <div class="flex justify-between">
+          <span class="text-zinc-400">CROSS-SECTION SPAN:</span>
+          <span id="caliper-width" class="text-amber-400 font-bold">48.5 m</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-400">ROOF VAULT HEIGHT:</span>
+          <span id="caliper-height" class="text-cyan-400 font-bold">23.8 m</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-400">RQD STABILITY:</span>
+          <span id="caliper-rqd" class="text-emerald-400 font-bold">86% (Good)</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-400">DRONE ENVELOPE:</span>
+          <span id="caliper-volume" class="text-emerald-400 font-bold">High Clearance Safe</span>
+        </div>
+      </div>
+      <span class="text-[10px] text-zinc-400">Click rock to test clearances, or use Ruler tool for 2-point delta.</span>
+    </div>
+  </aside>
+
+  <!-- Right Side: Mini Plan Radar, Layer Visibility Toggles, & Shader Filters -->
+  <aside class="absolute right-3 top-16 bottom-3 z-30 flex flex-col gap-2.5 pointer-events-auto w-72 text-xs">
+    <!-- Top-Down Real-time Cavern Radar Blueprint -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="mono-font font-bold text-amber-500 uppercase tracking-wider text-[11px]">GEOSPATIAL RADAR PLAN</span>
+        <span class="text-[9px] text-emerald-400 mono-font animate-pulse">● 1:500 CAD</span>
+      </div>
+      <div class="relative w-full h-44 bg-zinc-950/95 rounded border border-amber-900/40 overflow-hidden flex items-center justify-center">
+        <canvas id="radar-canvas" width="260" height="175" class="w-full h-full block"></canvas>
+      </div>
+      <div class="flex justify-between items-center text-[10px] text-zinc-400 mono-font">
+        <span>TOTAL DRIFT: 240m</span>
+        <span>BENCH: -160m RL</span>
+      </div>
+    </div>
+
+    <!-- GIS Map Layers & Object Filters -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2">
+      <span class="text-[10px] font-bold text-amber-500 uppercase tracking-wider mono-font">3D Survey Layers</span>
+      
+      <div class="space-y-1.5 text-[11px]">
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-mountain text-amber-500"></i> Terracotta Rock Shell</span>
+          <input type="checkbox" id="layer-rock" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-circle-nodes text-cyan-400"></i> 3D LiDAR Point Cloud</span>
+          <input type="checkbox" id="layer-lidar" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-shield-halved text-emerald-400"></i> Drone Safe Flight Corridor</span>
+          <input type="checkbox" id="layer-corridor" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-tree text-amber-400"></i> Timber Square Sets</span>
+          <input type="checkbox" id="layer-timbers" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-train text-zinc-400"></i> Haulage Rails & Air Ducts</span>
+          <input type="checkbox" id="layer-rails" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-location-dot text-cyan-400"></i> Geological Station Beacons</span>
+          <input type="checkbox" id="layer-beacons" checked class="accent-amber-500 rounded">
+        </label>
+        <label class="flex items-center justify-between p-1.5 rounded hover:bg-zinc-800/50 cursor-pointer">
+          <span class="text-zinc-300 flex items-center gap-2"><i class="fa-solid fa-border-all text-amber-600"></i> 10m Spatial Cadastral Grid</span>
+          <input type="checkbox" id="layer-grid" checked class="accent-amber-500 rounded">
+        </label>
+      </div>
+    </div>
+
+    <!-- Map Render Mode & Geological Sensor Shaders -->
+    <div class="gis-panel rounded-lg p-3 flex flex-col gap-2">
+      <span class="text-[10px] font-bold text-amber-500 uppercase tracking-wider mono-font">Geological & Sensor Shaders</span>
+      <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+        <button id="shader-truecolor" class="px-2 py-1.5 rounded bg-amber-600 text-white font-semibold flex items-center gap-1.5 justify-center">
+          <i class="fa-solid fa-eye"></i> True Color
+        </button>
+        <button id="shader-heatmap" class="px-2 py-1.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-semibold flex items-center gap-1.5 justify-center">
+          <i class="fa-solid fa-fire"></i> Stress Heatmap
+        </button>
+        <button id="shader-corridor" class="px-2 py-1.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-semibold flex items-center gap-1.5 justify-center">
+          <i class="fa-solid fa-cube"></i> Drone Mesh
+        </button>
+        <button id="shader-xray" class="px-2 py-1.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-semibold flex items-center gap-1.5 justify-center">
+          <i class="fa-solid fa-x-ray"></i> X-Ray Shell
+        </button>
+      </div>
+
+      <div class="flex items-center justify-between pt-1 border-t border-zinc-800/80 mt-1">
+        <span class="text-zinc-400 text-[11px]">Survey Floodlights</span>
+        <button id="btn-toggle-lights" class="px-2 py-0.5 rounded bg-amber-500 text-zinc-950 font-bold text-[10px]">FLOODLIGHTS ON</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Geological Station Inspection Modal / Floating Card -->
+  <div id="station-inspector-modal" class="hidden absolute top-20 left-1/2 -translate-x-1/2 z-40 w-96 gis-panel rounded-xl p-4 border border-amber-500/70 shadow-2xl pointer-events-auto">
+    <div class="flex items-center justify-between pb-2 border-b border-zinc-800">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></span>
+        <h4 id="station-title" class="font-bold text-amber-300 mono-font text-sm">Station Alpha</h4>
+      </div>
+      <button id="btn-close-modal" class="text-zinc-400 hover:text-zinc-100"><i class="fa-solid fa-xmark text-base"></i></button>
+    </div>
+    <div class="mt-3 space-y-2 text-xs">
+      <div class="flex justify-between py-1 border-b border-zinc-800/60">
+        <span class="text-zinc-400">Lithology / Rock Type:</span>
+        <span id="station-lithology" class="font-semibold text-zinc-200">Oxidized Terracotta Ironstone</span>
+      </div>
+      <div class="flex justify-between py-1 border-b border-zinc-800/60">
+        <span class="text-zinc-400">Structural Jointing / Strike:</span>
+        <span id="station-strike" class="font-semibold text-zinc-200">N42°E / 68°SE</span>
+      </div>
+      <div class="flex justify-between py-1 border-b border-zinc-800/60">
+        <span class="text-zinc-400">RQD Geotechnical Score:</span>
+        <span id="station-rqd" class="font-bold text-emerald-400">88% (Class I - Good)</span>
+      </div>
+      <div class="flex justify-between py-1 border-b border-zinc-800/60">
+        <span class="text-zinc-400">CH₄ Methane / CO:</span>
+        <span id="station-gas" class="font-semibold text-amber-400">0.02% / 4 PPM (Safe)</span>
+      </div>
+      <div class="flex justify-between py-1 border-b border-zinc-800/60">
+        <span class="text-zinc-400">Airflow Velocity:</span>
+        <span id="station-air" class="font-semibold text-cyan-400">1.85 m/s Inflow</span>
+      </div>
+      <div class="flex justify-between py-1">
+        <span class="text-zinc-400">Autonomous Drone RSSI:</span>
+        <span id="station-rssi" class="font-bold text-emerald-400">-58 dBm (Strong Link)</span>
+      </div>
+    </div>
+    <div class="mt-3 flex gap-2">
+      <button id="btn-station-focus" class="flex-1 py-1.5 rounded bg-amber-600 hover:bg-amber-500 font-bold text-white text-xs">Center Camera</button>
+      <button id="btn-station-export" class="py-1.5 px-3 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs">Log Telemetry</button>
+    </div>
+  </div>
+
+  <!-- Bottom Map Navigation Legend -->
+  <footer class="absolute bottom-2.5 left-3 right-3 z-30 flex items-center justify-between pointer-events-none text-xs">
+    <div class="gis-panel rounded-lg px-3.5 py-1.5 pointer-events-auto flex items-center space-x-4 text-[11px] text-zinc-300">
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-arrow-pointer text-amber-400"></i>
+        <span>Left Drag: Orbit 3D</span>
+      </span>
+      <span class="h-3 w-px bg-zinc-800"></span>
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-hand text-amber-400"></i>
+        <span>Right Drag: Pan Map</span>
+      </span>
+      <span class="h-3 w-px bg-zinc-800"></span>
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-magnifying-glass text-amber-400"></i>
+        <span>Wheel: Zoom</span>
+      </span>
+      <span class="h-3 w-px bg-zinc-800"></span>
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-bullseye text-cyan-400"></i>
+        <span>Click Rock: Clearance Caliper</span>
+      </span>
+      <span class="h-3 w-px bg-zinc-800"></span>
+      <span class="flex items-center gap-1.5">
+        <i class="fa-solid fa-location-dot text-emerald-400"></i>
+        <span>Click Beacons: Station Data</span>
+      </span>
+    </div>
+
+    <!-- North Compass Indicator -->
+    <div class="gis-panel rounded-full w-10 h-10 pointer-events-auto flex items-center justify-center relative shadow-lg">
+      <div id="compass-needle" class="compass-needle flex flex-col items-center">
+        <span class="text-[9px] font-bold text-red-500 leading-none">N</span>
+        <div class="w-0.5 h-3 bg-red-500"></div>
+        <div class="w-0.5 h-3 bg-zinc-500"></div>
+        <span class="text-[9px] font-bold text-zinc-500 leading-none">S</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-lg bg-zinc-900/95 border border-amber-500/70 text-amber-300 text-xs tracking-wider shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none mono-font flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toast-text">GIS Survey System Initialized</span>
+  </div>
+
+  <script>
+    // --- Global 3D State Variables ---
+    let scene, camera, renderer, orbitControls;
+    let cavernGroup, rockMesh, wireframeMesh, pointCloudMesh;
+    let timberGroup, railGroup, corridorGroup, gridGroup, markerGroup;
+    let surveySpotlights = [];
+    let caliperMarker, rulerLine, rulerPoints = [];
+    let isRulerActive = false;
+    let cavernSpline;
+
+    // Camera view states
+    const VIEW_ORBIT = 'orbit';
+    const VIEW_TOP = 'top';
+    const VIEW_SIDE = 'side';
+    const VIEW_FLY = 'fly';
+    let currentViewMode = VIEW_ORBIT;
+
+    // Survey Station Database (Geological telemetry matching reference image)
+    const MINE_HUBS = [
+      {
+        name: "1. Portal Entrance Arch",
+        camPos: new THREE.Vector3(0, 18, 55),
+        target: new THREE.Vector3(0, 5, 18),
+        clearance: "28.4m Span • 15.2m Height",
+        lithology: "Weathered Oxidized Terracotta Caprock",
+        strike: "N15°E / 74°SE",
+        rqd: "78% (Class II - Medium)",
+        gas: "0.01% CH₄ / 2 PPM CO",
+        air: "2.4 m/s Inflow (Surface Intake)",
+        rssi: "-42 dBm (Excellent)"
+      },
+      {
+        name: "2. Western Timber Corridor",
+        camPos: new THREE.Vector3(-18, 22, -8),
+        target: new THREE.Vector3(2, 6, -25),
+        clearance: "32.0m Span • 17.5m Height",
+        lithology: "Massive Ironstone with Limonite Banding",
+        strike: "N38°W / 82°NE",
+        rqd: "84% (Class I - Good)",
+        gas: "0.02% CH₄ / 4 PPM CO",
+        air: "1.9 m/s Inflow",
+        rssi: "-54 dBm (Strong)"
+      },
+      {
+        name: "3. Grand Extraction Stope",
+        camPos: new THREE.Vector3(48, 36, -65),
+        target: new THREE.Vector3(-6, 12, -72),
+        clearance: "52.4m Span • 24.6m Vault Dome",
+        lithology: "High-grade Hematite & Jasper Breccia",
+        strike: "N05°E / 65°NW",
+        rqd: "91% (Class I - Exceptional)",
+        gas: "0.03% CH₄ / 6 PPM CO",
+        air: "0.85 m/s Plume Flow",
+        rssi: "-62 dBm (Nominal High-Clearance)"
+      },
+      {
+        name: "4. North-East Ore Chute",
+        camPos: new THREE.Vector3(-32, 24, -105),
+        target: new THREE.Vector3(-4, 7, -118),
+        clearance: "36.2m Span • 18.8m Height",
+        lithology: "Fractured Terracotta with Quartz Veins",
+        strike: "N55°E / 55°SE",
+        rqd: "74% (Class II - Fractured)",
+        gas: "0.04% CH₄ / 8 PPM CO",
+        air: "1.45 m/s Extraction Duct",
+        rssi: "-69 dBm (Good Relay)"
+      },
+      {
+        name: "5. Deep Abyss Winze Shaft",
+        camPos: new THREE.Vector3(12, 38, -145),
+        target: new THREE.Vector3(0, 0, -168),
+        clearance: "42.0m Span • Deep Sump Descent",
+        lithology: "Silicified Hematite & Pyrite Mineralized Sump",
+        strike: "N22°W / 90° Vertical",
+        rqd: "82% (Class I - Good)",
+        gas: "0.06% CH₄ / 11 PPM CO",
+        air: "0.55 m/s Downcast Draft",
+        rssi: "-76 dBm (Mesh Repeater Required)"
+      }
+    ];
+
+    // Procedural Terracotta & Hematite Rock Texture Generator (Faithful to photo)
+    function createProceduralRockTexture(type = 'color') {
+      const size = 1024;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      if (type === 'color') {
+        // Base oxidized red-brown terracotta tone
+        ctx.fillStyle = '#653828';
+        ctx.fillRect(0, 0, size, size);
+
+        // Multi-layered rock speckles & mineral flecks
+        for (let i = 0; i < 30000; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const r = Math.random() * 4.2 + 0.8;
+          const rand = Math.random();
+
+          if (rand < 0.35) {
+            ctx.fillStyle = `rgba(180, 88, 54, ${Math.random() * 0.55})`; // Terracotta red highlight
+          } else if (rand < 0.65) {
+            ctx.fillStyle = `rgba(40, 20, 14, ${Math.random() * 0.75})`;  // Shadowed crevice
+          } else if (rand < 0.85) {
+            ctx.fillStyle = `rgba(224, 162, 120, ${Math.random() * 0.4})`; // Sandstone / dusty highlight
+          } else {
+            ctx.fillStyle = `rgba(118, 56, 36, ${Math.random() * 0.5})`;  // Hematite oxide
+          }
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Jagged cleavage fractures & blasted joint cracks
+        for (let j = 0; j < 85; j++) {
+          let cx = Math.random() * size;
+          let cy = Math.random() * size;
+          ctx.strokeStyle = 'rgba(24, 12, 10, 0.75)';
+          ctx.lineWidth = Math.random() * 2.5 + 1.0;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          for (let seg = 0; seg < 9; seg++) {
+            cx += (Math.random() - 0.5) * 65;
+            cy += (Math.random() - 0.5) * 65;
+            ctx.lineTo(cx, cy);
+          }
+          ctx.stroke();
+        }
+      } else if (type === 'bump') {
+        // Greyscale heightmap bump
+        ctx.fillStyle = '#808080';
+        ctx.fillRect(0, 0, size, size);
+
+        for (let i = 0; i < 22000; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const r = Math.random() * 5.0 + 1.0;
+          const val = Math.floor(Math.random() * 255);
+          ctx.fillStyle = `rgba(${val}, ${val}, ${val}, ${Math.random() * 0.4})`;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (type === 'stress') {
+        // Structural Geomechanical FEA stress gradient texture
+        const grad = ctx.createLinearGradient(0, 0, size, size);
+        grad.addColorStop(0.0, '#10b981'); // Safe green
+        grad.addColorStop(0.4, '#06b6d4'); // Low cyan
+        grad.addColorStop(0.65, '#f59e0b'); // Moderate amber stress
+        grad.addColorStop(0.9, '#ef4444');  // High stress zone
+        grad.addColorStop(1.0, '#dc2626');  // Rockburst warning
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+
+        // Contour stress isobar rings
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 2;
+        for (let r = 50; r < size; r += 70) {
+          ctx.beginPath();
+          ctx.arc(size * 0.7, size * 0.7, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      return texture;
+    }
+
+    // Heavy Douglas Fir Timber Texture Generator
+    function createProceduralTimberTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#7a4822';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Wood grain lines
+      for (let y = 0; y < 512; y += 3) {
+        ctx.fillStyle = `rgba(38, 18, 6, ${0.15 + Math.random() * 0.22})`;
+        ctx.fillRect(0, y, 512, 2.2);
+      }
+      // Knots
+      for (let k = 0; k < 6; k++) {
+        const kx = Math.random() * 512;
+        const ky = Math.random() * 512;
+        ctx.fillStyle = 'rgba(25, 10, 4, 0.7)';
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, 10, 24, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      return texture;
+    }
+
+    function initThreeScene() {
+      const container = document.getElementById('viewport-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050404);
+      scene.fog = new THREE.FogExp2(0x090706, 0.0085);
+
+      // Perspective Camera
+      camera = new THREE.PerspectiveCamera(65, w / h, 0.2, 900);
+      camera.position.set(0, 26, 65);
+
+      // WebGL Renderer with High-Performance Tone Mapping
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.35;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      // OrbitControls for intuitive navigation
+      orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+      orbitControls.enableDamping = true;
+      orbitControls.dampingFactor = 0.08;
+      orbitControls.maxDistance = 320;
+      orbitControls.minDistance = 3;
+      orbitControls.target.set(0, 6, 0);
+
+      // Ambient subterranean bounce light
+      const ambientLight = new THREE.AmbientLight(0x4a3227, 0.7);
+      scene.add(ambientLight);
+
+      // Main directional survey light simulating surface drift portal spill
+      const sunSurvey = new THREE.DirectionalLight(0xffbe76, 1.25);
+      sunSurvey.position.set(25, 65, 45);
+      scene.add(sunSurvey);
+
+      // Caliper measurement target visual
+      const markerGeo = new THREE.RingGeometry(0.8, 1.3, 24);
+      markerGeo.rotateX(-Math.PI / 2);
+      const markerMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+      caliperMarker = new THREE.Mesh(markerGeo, markerMat);
+      caliperMarker.position.set(0, -999, 0);
+      scene.add(caliperMarker);
+
+      // Ruler 3D Line Geometry
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 3 });
+      const lineGeo = new THREE.BufferGeometry();
+      rulerLine = new THREE.Line(lineGeo, lineMat);
+      rulerLine.visible = false;
+      scene.add(rulerLine);
+
+      // Build expansive 3D subterranean environment
+      buildExpansiveCavernNetwork();
+      buildLidarPointCloud();
+      buildFlightCorridors();
+      buildTimberArchways();
+      buildHaulageRailsAndPipes();
+      buildSpatialGridAndPins();
+      setupSurveyLighting();
+
+      // Window resize listener
+      window.addEventListener('resize', onWindowResize);
+
+      // Raycaster setup for Caliper, Ruler, and Beacons
+      setupRaycasterInteractions();
+    }
+
+    function buildExpansiveCavernNetwork() {
+      cavernGroup = new THREE.Group();
+
+      // Spline defining the 240-meter haulage drift traversing the mountain
+      const splinePoints = [
+        new THREE.Vector3(0, 4.0, 35),       // Portal mouth
+        new THREE.Vector3(0, 5.0, 5),        // Entrance throat
+        new THREE.Vector3(10.0, 6.5, -30),   // Western bend
+        new THREE.Vector3(-14.0, 9.5, -72),  // Center of Great Stope Dome
+        new THREE.Vector3(16.0, 8.0, -118),  // North-East Ore Chute
+        new THREE.Vector3(-5.0, 4.5, -160),  // Deep winze descent
+        new THREE.Vector3(0, 0.0, -205)      // Deep winze terminus
+      ];
+      cavernSpline = new THREE.CatmullRomCurve3(splinePoints);
+
+      // Massive Cavern Tube Geometry: baseRadius 17m = 34m diameter cross section
+      const tubularSegments = 180;
+      const baseRadius = 17.0; 
+      const radialSegments = 36;
+      const tubeGeo = new THREE.TubeGeometry(cavernSpline, tubularSegments, baseRadius, radialSegments, false);
+
+      const pos = tubeGeo.attributes.position;
+      const v = new THREE.Vector3();
+
+      // Displace vertices to create rugged blasted rock walls, flattened haulage floor, and massive vaulted stope
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+
+        // Giant Grand Extraction Stope expansion around Z = -45 to -100
+        let cavernExpansion = 1.0;
+        if (v.z < -45 && v.z > -100) {
+          // Expands diameter to >50 meters
+          cavernExpansion = 1.55 + Math.sin((v.z + 45) / 55 * Math.PI) * 0.85;
+        }
+
+        // Multi-frequency blasted rock fracture noise
+        const n1 = Math.sin(v.x * 0.22 + v.z * 0.14) * 2.0;
+        const n2 = Math.cos(v.y * 0.32 + v.z * 0.22) * 1.6;
+        const n3 = Math.sin((v.x + v.y + v.z) * 0.65) * 1.0;
+        const rockFracture = n1 + n2 + n3;
+
+        // Flatten the bottom floor for wide double-track rail bed
+        if (v.y < 1.2) {
+          v.y = 0.0 + Math.sin(v.z * 0.25) * 0.3;
+          v.x *= cavernExpansion * 1.2;
+        } else {
+          v.x = (v.x * cavernExpansion) + rockFracture * 1.4;
+          v.y = (v.y * (cavernExpansion > 1.2 ? 1.6 : 1.15)) + rockFracture * 1.5;
+        }
+
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+      tubeGeo.computeVertexNormals();
+
+      // Procedural textures matching reference photo terracotta oxidized ore
+      const rockColorMap = createProceduralRockTexture('color');
+      rockColorMap.repeat.set(18, 12);
+      const rockBumpMap = createProceduralRockTexture('bump');
+      rockBumpMap.repeat.set(18, 12);
+
+      const rockMat = new THREE.MeshStandardMaterial({
+        map: rockColorMap,
+        bumpMap: rockBumpMap,
+        bumpScale: 0.5,
+        roughness: 0.88,
+        metalness: 0.10,
+        side: THREE.BackSide
+      });
+
+      rockMesh = new THREE.Mesh(tubeGeo, rockMat);
+      rockMesh.receiveShadow = true;
+      cavernGroup.add(rockMesh);
+
+      // Wireframe overlay mesh (for X-ray & CAD Inspection modes)
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0xf59e0b,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.25
+      });
+      wireframeMesh = new THREE.Mesh(tubeGeo, wireMat);
+      wireframeMesh.visible = false;
+      cavernGroup.add(wireframeMesh);
+
+      // Central Geological Rock Pillar inside the Great Stope (Z = -72)
+      const pillarGeo = new THREE.CylinderGeometry(5.0, 8.5, 26, 20);
+      const pPos = pillarGeo.attributes.position;
+      for (let k = 0; k < pPos.count; k++) {
+        pPos.setX(k, pPos.getX(k) + (Math.random() - 0.5) * 1.8);
+        pPos.setZ(k, pPos.getZ(k) + (Math.random() - 0.5) * 1.8);
+      }
+      pillarGeo.computeVertexNormals();
+
+      const pillarMat = new THREE.MeshStandardMaterial({
+        map: rockColorMap,
+        bumpMap: rockBumpMap,
+        bumpScale: 0.45,
+        roughness: 0.92
+      });
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(-7, 13, -72);
+      pillar.castShadow = true;
+      cavernGroup.add(pillar);
+
+      // Massive Fallen Boulders & Floor Breakdown Talus Cones
+      const boulderMat = new THREE.MeshStandardMaterial({
+        map: rockColorMap,
+        bumpMap: rockBumpMap,
+        bumpScale: 0.4,
+        roughness: 0.95
+      });
+
+      const boulderSpawns = [
+        { x: -8, y: 3.0, z: 15, s: 5.5 },
+        { x: 11, y: 3.5, z: -16, s: 7.2 },
+        { x: -16, y: 4.5, z: -62, s: 10.5 },
+        { x: 14, y: 3.8, z: -82, s: 7.8 },
+        { x: 5, y: 3.2, z: -135, s: 6.2 }
+      ];
+
+      boulderSpawns.forEach(b => {
+        const bGeo = new THREE.DodecahedronGeometry(1.0, 1);
+        const bMesh = new THREE.Mesh(bGeo, boulderMat);
+        bMesh.scale.set(b.s, b.s * 0.75, b.s);
+        bMesh.position.set(b.x, b.y, b.z);
+        bMesh.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+        bMesh.castShadow = true;
+        cavernGroup.add(bMesh);
+      });
+
+      // Hanging stalactite formations along the high vaulted ceiling
+      const stalactiteData = [
+        { x: -4, y: 24, z: -68, r: 2.5, h: 8.5 },
+        { x: 8, y: 25, z: -76, r: 2.8, h: 9.5 },
+        { x: 5, y: 21, z: -115, r: 2.0, h: 7.0 },
+        { x: -7, y: 19, z: -25, r: 1.8, h: 6.0 }
+      ];
+
+      stalactiteData.forEach(s => {
+        const sGeo = new THREE.ConeGeometry(s.r, s.h, 14);
+        sGeo.rotateX(Math.PI);
+        const stalaMesh = new THREE.Mesh(sGeo, boulderMat);
+        stalaMesh.position.set(s.x, s.y, s.z);
+        cavernGroup.add(stalaMesh);
+      });
+
+      scene.add(cavernGroup);
+    }
+
+    // 3D LiDAR Survey Point Cloud Layer
+    function buildLidarPointCloud() {
+      const count = 22000;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+
+      const splinePoints = cavernSpline.getPoints(140);
+
+      for (let i = 0; i < count; i++) {
+        const idx = Math.floor(Math.random() * (splinePoints.length - 1));
+        const center = splinePoints[idx];
+
+        // Random radius around cavern tube wall
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 15 + Math.random() * 9; // Big cavern radius
+        const px = center.x + Math.cos(angle) * radius;
+        const py = Math.max(0.1, center.y + Math.sin(angle) * (radius * 0.88));
+        const pz = center.z + (Math.random() - 0.5) * 4.5;
+
+        pos[i * 3] = px;
+        pos[i * 3 + 1] = py;
+        pos[i * 3 + 2] = pz;
+
+        // Color coding by depth / LiDAR intensity (Cyan to Amber to Purple)
+        const depthNorm = Math.abs(pz) / 220;
+        colors[i * 3] = 0.2 + depthNorm * 0.8;      // R
+        colors[i * 3 + 1] = 0.85 - depthNorm * 0.45;// G
+        colors[i * 3 + 2] = 0.95 - depthNorm * 0.65;// B
+      }
+
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const pMat = new THREE.PointsMaterial({
+        size: 0.28,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending
+      });
+
+      pointCloudMesh = new THREE.Points(geo, pMat);
+      scene.add(pointCloudMesh);
+    }
+
+    // Safe Drone Flight Corridor (Safe Volume Visualization)
+    function buildFlightCorridors() {
+      corridorGroup = new THREE.Group();
+
+      // Inner flight corridor tube (Safe clearance: 11m diameter core)
+      const corridorGeo = new THREE.TubeGeometry(cavernSpline, 95, 5.8, 16, false);
+      const corridorMat = new THREE.MeshBasicMaterial({
+        color: 0x10b981,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.18
+      });
+
+      const corridorMesh = new THREE.Mesh(corridorGeo, corridorMat);
+      corridorGroup.add(corridorMesh);
+
+      // Waypoint ring nodes along flight spline
+      const waypoints = cavernSpline.getPoints(16);
+      waypoints.forEach(pt => {
+        const ringGeo = new THREE.TorusGeometry(5.8, 0.12, 8, 24);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.copy(pt);
+        corridorGroup.add(ring);
+      });
+
+      scene.add(corridorGroup);
+    }
+
+    // Timber Square-Set Support Portals (Faithful to reference image)
+    function buildTimberArchways() {
+      timberGroup = new THREE.Group();
+      const timberTex = createProceduralTimberTexture();
+      timberTex.repeat.set(1, 3);
+
+      const timberMat = new THREE.MeshStandardMaterial({
+        map: timberTex,
+        roughness: 0.85,
+        color: 0xb87a42
+      });
+
+      // Timber gates positioned along the drift
+      const timberZPoints = [18, -4, -25, -48, -98, -125];
+
+      timberZPoints.forEach(zVal => {
+        const arch = new THREE.Group();
+        const gateWidth = 22.0;  // Wide 22-meter span
+        const gateHeight = 13.0; // High 13-meter clearance
+        const postThickness = 1.0;
+
+        // Left Upright Timber Post
+        const leftPost = new THREE.Mesh(new THREE.BoxGeometry(postThickness, gateHeight, postThickness), timberMat);
+        leftPost.position.set(-gateWidth / 2, gateHeight / 2, 0);
+        leftPost.castShadow = true;
+        arch.add(leftPost);
+
+        // Right Upright Timber Post (On stone plinth like reference image)
+        const rightPost = new THREE.Mesh(new THREE.BoxGeometry(postThickness, gateHeight, postThickness), timberMat);
+        rightPost.position.set(gateWidth / 2, gateHeight / 2, 0);
+        rightPost.castShadow = true;
+        arch.add(rightPost);
+
+        // Heavy Overhead Collar Crossbeam
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(gateWidth + 1.8, postThickness * 1.1, postThickness * 1.2), timberMat);
+        beam.position.set(0, gateHeight, 0);
+        beam.castShadow = true;
+        arch.add(beam);
+
+        // Diagonal knee braces
+        const braceGeo = new THREE.BoxGeometry(0.55, 3.4, 0.55);
+        const bLeft = new THREE.Mesh(braceGeo, timberMat);
+        bLeft.position.set(-gateWidth / 2 + 1.3, gateHeight - 1.3, 0);
+        bLeft.rotation.z = -Math.PI / 4;
+        arch.add(bLeft);
+
+        const bRight = new THREE.Mesh(braceGeo, timberMat);
+        bRight.position.set(gateWidth / 2 - 1.3, gateHeight - 1.3, 0);
+        bRight.rotation.z = Math.PI / 4;
+        arch.add(bRight);
+
+        // Suspended mining lantern
+        const lantern = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.35, 0.45, 0.85, 8),
+          new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 1.6 })
+        );
+        lantern.position.set(0, gateHeight - 1.0, 0);
+        arch.add(lantern);
+
+        const lLight = new THREE.PointLight(0xffa133, 1.8, 30);
+        lLight.position.set(0, gateHeight - 1.3, 0);
+        arch.add(lLight);
+
+        // Align with centerline
+        const centerPt = cavernSpline.getPointAt(Math.min(1.0, Math.max(0.0, (18 - zVal) / 240)));
+        arch.position.set(centerPt.x, 0, zVal);
+        timberGroup.add(arch);
+      });
+
+      scene.add(timberGroup);
+    }
+
+    // Haulage Mine Cart Track Rails & Overhead Air Ducts
+    function buildHaulageRailsAndPipes() {
+      railGroup = new THREE.Group();
+
+      const steelMat = new THREE.MeshStandardMaterial({
+        color: 0x475569,
+        metalness: 0.85,
+        roughness: 0.3
+      });
+
+      const sleeperMat = new THREE.MeshStandardMaterial({
+        color: 0x3d271d,
+        roughness: 0.92
+      });
+
+      // Dual parallel track lines along the wide haulage floor
+      const trackOffsets = [-3.2, -1.3, 1.3, 3.2];
+      const pts = cavernSpline.getPoints(95);
+
+      trackOffsets.forEach(offX => {
+        const railCurvePts = pts.map(p => new THREE.Vector3(p.x + offX, 0.16, p.z));
+        const railCurve = new THREE.CatmullRomCurve3(railCurvePts);
+        const railGeo = new THREE.TubeGeometry(railCurve, 95, 0.08, 6, false);
+        const rail = new THREE.Mesh(railGeo, steelMat);
+        railGroup.add(rail);
+      });
+
+      // Wooden Track Sleepers (Ties)
+      for (let s = 0; s < pts.length; s += 2) {
+        const pt = pts[s];
+        const sleeper = new THREE.Mesh(new THREE.BoxGeometry(7.8, 0.15, 0.42), sleeperMat);
+        sleeper.position.set(pt.x, 0.07, pt.z);
+        railGroup.add(sleeper);
+      }
+
+      // Overhead Yellow Flexible Spiral Ventilation Duct
+      const ventPts = pts.map(p => new THREE.Vector3(p.x - 8.0, 15.0, p.z));
+      const ventCurve = new THREE.CatmullRomCurve3(ventPts);
+      const ventGeo = new THREE.TubeGeometry(ventCurve, 75, 0.9, 12, false);
+      const ventMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.55 });
+      const ventDuct = new THREE.Mesh(ventGeo, ventMat);
+      railGroup.add(ventDuct);
+
+      scene.add(railGroup);
+    }
+
+    // 10-meter Spatial Cadastral Grid and Station Pin Markers
+    function buildSpatialGridAndPins() {
+      gridGroup = new THREE.Group();
+      markerGroup = new THREE.Group();
+
+      // Subterranean Datum Floor Grid (10m x 10m grid lines)
+      const gridHelper = new THREE.GridHelper(280, 28, 0xd97706, 0x27272a);
+      gridHelper.position.set(0, 0.01, -85);
+      gridGroup.add(gridHelper);
+      scene.add(gridGroup);
+
+      // Interactive 3D Sector Station Beacons
+      MINE_HUBS.forEach((hub, idx) => {
+        const beacon = new THREE.Group();
+
+        // Glowing Diamond Pin
+        const pinGeo = new THREE.OctahedronGeometry(1.7, 0);
+        const pinMat = new THREE.MeshStandardMaterial({
+          color: idx === 2 ? 0x10b981 : 0x38bdf8,
+          emissive: idx === 2 ? 0x059669 : 0x0284c7,
+          emissiveIntensity: 0.85,
+          metalness: 0.5,
+          roughness: 0.2
+        });
+        const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+        pinMesh.position.y = 9.0;
+        beacon.add(pinMesh);
+
+        // Ground guide pillar line
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 9.0, 0)
+        ]);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.75 });
+        const line = new THREE.Line(lineGeo, lineMat);
+        beacon.add(line);
+
+        beacon.position.copy(hub.target);
+        beacon.userData = { hubIndex: idx, name: hub.name };
+        markerGroup.add(beacon);
+      });
+
+      scene.add(markerGroup);
+    }
+
+    // Cavern Survey Work Spotlights
+    function setupSurveyLighting() {
+      const lightPositions = [
+        new THREE.Vector3(0, 18, 22),
+        new THREE.Vector3(0, 22, -30),
+        new THREE.Vector3(0, 26, -72),
+        new THREE.Vector3(0, 20, -120),
+        new THREE.Vector3(0, 16, -170)
+      ];
+
+      lightPositions.forEach(lp => {
+        const spot = new THREE.SpotLight(0xffbe76, 2.5, 75, Math.PI / 3, 0.5, 1.2);
+        spot.position.copy(lp);
+        spot.target.position.set(lp.x, 0, lp.z);
+        scene.add(spot.target);
+        scene.add(spot);
+        surveySpotlights.push(spot);
+      });
+    }
+
+    // Click-to-measure & Sector Beacon Inspection Raycaster
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    function setupRaycasterInteractions() {
+      window.addEventListener('click', (e) => {
+        if (e.target.closest('aside') || e.target.closest('header') || e.target.closest('footer') || e.target.closest('#station-inspector-modal')) return;
+
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        // Check station beacons first
+        const beaconIntersects = raycaster.intersectObjects(markerGroup.children, true);
+        if (beaconIntersects.length > 0) {
+          let topParent = beaconIntersects[0].object;
+          while (topParent.parent && topParent.parent !== markerGroup) {
+            topParent = topParent.parent;
+          }
+          if (topParent.userData && topParent.userData.hubIndex !== undefined) {
+            openStationModal(topParent.userData.hubIndex);
+            return;
+          }
+        }
+
+        // Raycast against Cavern Rock for Caliper or Ruler
+        const rockIntersects = raycaster.intersectObject(rockMesh);
+        if (rockIntersects.length > 0) {
+          const hit = rockIntersects[0].point;
+
+          if (isRulerActive) {
+            handleRulerClick(hit);
+          } else {
+            handleCaliperClick(hit);
+          }
+        }
+      });
+    }
+
+    function handleCaliperClick(hit) {
+      caliperMarker.position.copy(hit);
+      caliperMarker.position.y += 0.05;
+
+      const zDepth = hit.z;
+      let estimatedSpan = 33.0;
+      let estimatedHeight = 17.0;
+      let rqdVal = 82;
+
+      if (zDepth < -45 && zDepth > -100) {
+        estimatedSpan = 52.4;
+        estimatedHeight = 24.6;
+        rqdVal = 91;
+      } else if (zDepth < -105) {
+        estimatedSpan = 36.8;
+        estimatedHeight = 18.5;
+        rqdVal = 76;
+      }
+
+      document.getElementById('caliper-width').textContent = `${estimatedSpan.toFixed(1)} m`;
+      document.getElementById('caliper-height').textContent = `${estimatedHeight.toFixed(1)} m`;
+      document.getElementById('caliper-rqd').textContent = `${rqdVal}% (Good)`;
+      document.getElementById('caliper-volume').textContent = estimatedSpan > 40 ? "High Clearance (Safe Loop)" : "Standard Flight Envelope";
+
+      showToast(`Clearance Caliper: W ${estimatedSpan.toFixed(1)}m × H ${estimatedHeight.toFixed(1)}m (RQD: ${rqdVal}%)`);
+    }
+
+    function handleRulerClick(pt) {
+      rulerPoints.push(pt);
+      if (rulerPoints.length === 1) {
+        showToast("Ruler: Click 2nd point to calculate Euclidean vector & delta Z");
+      } else if (rulerPoints.length === 2) {
+        const p1 = rulerPoints[0];
+        const p2 = rulerPoints[1];
+        const dist = p1.distanceTo(p2);
+        const dZ = Math.abs(p1.y - p2.y);
+
+        rulerLine.geometry.setFromPoints([p1, p2]);
+        rulerLine.visible = true;
+
+        showToast(`Ruler Distance: ${dist.toFixed(2)}m (Elevation Δ: ${dZ.toFixed(2)}m)`);
+        rulerPoints = [];
+      }
+    }
+
+    // Station Inspection Modal Logic
+    function openStationModal(hubIdx) {
+      const hub = MINE_HUBS[hubIdx];
+      if (!hub) return;
+
+      document.getElementById('station-title').textContent = hub.name;
+      document.getElementById('station-lithology').textContent = hub.lithology;
+      document.getElementById('station-strike').textContent = hub.strike;
+      document.getElementById('station-rqd').textContent = hub.rqd;
+      document.getElementById('station-gas').textContent = hub.gas;
+      document.getElementById('station-air').textContent = hub.air;
+      document.getElementById('station-rssi').textContent = hub.rssi;
+
+      document.getElementById('station-inspector-modal').classList.remove('hidden');
+
+      document.getElementById('btn-station-focus').onclick = () => {
+        flyCameraToSector(hubIdx);
+        document.getElementById('station-inspector-modal').classList.add('hidden');
+      };
+      document.getElementById('btn-station-export').onclick = () => {
+        showToast(`Telemetry logged for ${hub.name}`);
+      };
+    }
+
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+      document.getElementById('station-inspector-modal').classList.add('hidden');
+    });
+
+    // Smooth Camera Transition to Sector
+    function flyCameraToSector(hubIndex) {
+      const hub = MINE_HUBS[hubIndex];
+      if (!hub) return;
+
+      new TWEEN.Tween(camera.position)
+        .to({ x: hub.camPos.x, y: hub.camPos.y, z: hub.camPos.z }, 1600)
+        .easing(TWEEN.Easing.Cubic.InOut)
+        .start();
+
+      new TWEEN.Tween(orbitControls.target)
+        .to({ x: hub.target.x, y: hub.target.y, z: hub.target.z }, 1600)
+        .easing(TWEEN.Easing.Cubic.InOut)
+        .start();
+
+      // Update active UI cards
+      document.querySelectorAll('.sector-card').forEach((card, idx) => {
+        if (idx === hubIndex) {
+          card.className = "sector-card text-left p-2 rounded bg-amber-600/35 border border-amber-500 font-bold transition-all flex flex-col gap-0.5 shadow-md";
+        } else {
+          card.className = "sector-card text-left p-2 rounded bg-zinc-800/60 border border-zinc-700/60 hover:bg-zinc-700/80 transition-all flex flex-col gap-0.5";
+        }
+      });
+
+      document.getElementById('hud-sector').textContent = hub.name.split('.')[1].trim();
+      document.getElementById('hud-clearance').textContent = hub.clearance.split('•')[0].trim();
+      showToast(`Survey Beacon: Centered on ${hub.name}`);
+    }
+
+    // Setup UI button listeners & Layer Toggles
+    function setupUIEventListeners() {
+      // Sector button clicks
+      document.querySelectorAll('.sector-card').forEach(btn => {
+        btn.addEventListener('click', () => {
+          flyCameraToSector(parseInt(btn.dataset.sectorIdx));
+        });
+      });
+
+      // Ruler Tool Toggle
+      const btnRuler = document.getElementById('btn-tool-ruler');
+      btnRuler.addEventListener('click', () => {
+        isRulerActive = !isRulerActive;
+        rulerPoints = [];
+        rulerLine.visible = false;
+        document.getElementById('ruler-btn-txt').textContent = isRulerActive ? "Ruler Tool (Active)" : "Ruler Tool (Off)";
+        btnRuler.className = isRulerActive ? "flex-1 py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow" : "flex-1 py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all";
+        showToast(isRulerActive ? "Ruler Activated: Click 2 points in cave to measure distance" : "Ruler Mode Deactivated");
+      });
+
+      // Camera Projection Modes
+      document.getElementById('btn-view-orbit').addEventListener('click', () => {
+        setCameraView(VIEW_ORBIT);
+      });
+      document.getElementById('btn-view-top').addEventListener('click', () => {
+        setCameraView(VIEW_TOP);
+      });
+      document.getElementById('btn-view-side').addEventListener('click', () => {
+        setCameraView(VIEW_SIDE);
+      });
+      document.getElementById('btn-view-fly').addEventListener('click', () => {
+        setCameraView(VIEW_FLY);
+      });
+
+      document.getElementById('btn-reset-cam').addEventListener('click', () => {
+        flyCameraToSector(0);
+      });
+
+      // Layer Checkbox Toggles
+      document.getElementById('layer-rock').addEventListener('change', (e) => {
+        rockMesh.visible = e.target.checked;
+      });
+      document.getElementById('layer-lidar').addEventListener('change', (e) => {
+        pointCloudMesh.visible = e.target.checked;
+      });
+      document.getElementById('layer-corridor').addEventListener('change', (e) => {
+        corridorGroup.visible = e.target.checked;
+      });
+      document.getElementById('layer-timbers').addEventListener('change', (e) => {
+        timberGroup.visible = e.target.checked;
+      });
+      document.getElementById('layer-rails').addEventListener('change', (e) => {
+        railGroup.visible = e.target.checked;
+      });
+      document.getElementById('layer-beacons').addEventListener('change', (e) => {
+        markerGroup.visible = e.target.checked;
+      });
+      document.getElementById('layer-grid').addEventListener('change', (e) => {
+        gridGroup.visible = e.target.checked;
+      });
+
+      // Geological Shader Selection
+      const stressTex = createProceduralRockTexture('stress');
+      stressTex.repeat.set(12, 8);
+      const trueColorTex = rockMesh.material.map;
+
+      document.getElementById('shader-truecolor').addEventListener('click', (e) => {
+        wireframeMesh.visible = false;
+        rockMesh.visible = true;
+        rockMesh.material.map = trueColorTex;
+        rockMesh.material.needsUpdate = true;
+        updateShaderButtonUI(e.currentTarget);
+        showToast("Shader: True Color Terracotta Texture");
+      });
+      document.getElementById('shader-heatmap').addEventListener('click', (e) => {
+        wireframeMesh.visible = false;
+        rockMesh.visible = true;
+        rockMesh.material.map = stressTex;
+        rockMesh.material.needsUpdate = true;
+        updateShaderButtonUI(e.currentTarget);
+        showToast("Shader: FEA Structural Stress Heatmap Activated");
+      });
+      document.getElementById('shader-corridor').addEventListener('click', (e) => {
+        corridorGroup.visible = true;
+        document.getElementById('layer-corridor').checked = true;
+        updateShaderButtonUI(e.currentTarget);
+        showToast("Shader: Drone Safe Flight Corridor Highlighted");
+      });
+      document.getElementById('shader-xray').addEventListener('click', (e) => {
+        wireframeMesh.visible = true;
+        rockMesh.visible = false;
+        updateShaderButtonUI(e.currentTarget);
+        showToast("Shader: Sub-Surface X-Ray Wireframe Activated");
+      });
+
+      // Toggle Spotlights
+      const btnLights = document.getElementById('btn-toggle-lights');
+      let lightsOn = true;
+      btnLights.addEventListener('click', () => {
+        lightsOn = !lightsOn;
+        surveySpotlights.forEach(s => s.visible = lightsOn);
+        btnLights.textContent = lightsOn ? "FLOODLIGHTS ON" : "DIMMED";
+        btnLights.className = lightsOn ? "px-2 py-0.5 rounded bg-amber-500 text-zinc-950 font-bold text-[10px]" : "px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-bold text-[10px]";
+      });
+    }
+
+    function updateShaderButtonUI(activeBtn) {
+      document.querySelectorAll('#shader-truecolor, #shader-heatmap, #shader-corridor, #shader-xray').forEach(b => {
+        b.className = "px-2 py-1.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-semibold flex items-center gap-1.5 justify-center";
+      });
+      activeBtn.className = "px-2 py-1.5 rounded bg-amber-600 text-white font-semibold flex items-center gap-1.5 justify-center";
+    }
+
+    function setCameraView(mode) {
+      currentViewMode = mode;
+      const bOrbit = document.getElementById('btn-view-orbit');
+      const bTop = document.getElementById('btn-view-top');
+      const bSide = document.getElementById('btn-view-side');
+      const bFly = document.getElementById('btn-view-fly');
+
+      [bOrbit, bTop, bSide, bFly].forEach(b => b.className = "py-1.5 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold flex items-center justify-center gap-1.5 transition-all");
+
+      if (mode === VIEW_ORBIT) {
+        bOrbit.className = "py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow hover:bg-amber-500";
+        flyCameraToSector(0);
+      } else if (mode === VIEW_TOP) {
+        bTop.className = "py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow hover:bg-amber-500";
+        new TWEEN.Tween(camera.position)
+          .to({ x: 0, y: 155, z: -85 }, 1400)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start();
+        new TWEEN.Tween(orbitControls.target)
+          .to({ x: 0, y: 0, z: -85 }, 1400)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start();
+        showToast("Switched to Top Plan CAD View");
+      } else if (mode === VIEW_SIDE) {
+        bSide.className = "py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow hover:bg-amber-500";
+        new TWEEN.Tween(camera.position)
+          .to({ x: 135, y: 22, z: -85 }, 1400)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start();
+        new TWEEN.Tween(orbitControls.target)
+          .to({ x: 0, y: 8, z: -85 }, 1400)
+          .easing(TWEEN.Easing.Cubic.InOut)
+          .start();
+        showToast("Switched to Side Elevation Cutaway");
+      } else if (mode === VIEW_FLY) {
+        bFly.className = "py-1.5 px-2 rounded bg-amber-600 text-white font-bold flex items-center justify-center gap-1.5 transition-all shadow hover:bg-amber-500";
+        startFlythroughSequence();
+      }
+    }
+
+    let isFlyingThrough = false;
+
+    function startFlythroughSequence() {
+      isFlyingThrough = true;
+      showToast("Starting Automated Spline Fly-Through Survey");
+      let currentIdx = 0;
+
+      const flyNext = () => {
+        if (!isFlyingThrough || currentViewMode !== VIEW_FLY) return;
+        flyCameraToSector(currentIdx);
+        currentIdx = (currentIdx + 1) % MINE_HUBS.length;
+        setTimeout(flyNext, 5200);
+      };
+      flyNext();
+    }
+
+    // 2D Geospatial Radar Canvas Blueprint
+    function renderGeospatialRadar() {
+      const canvas = document.getElementById('radar-canvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Radar range rings
+      ctx.strokeStyle = 'rgba(217, 119, 6, 0.20)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, 42, 0, Math.PI * 2);
+      ctx.arc(w / 2, h / 2, 80, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Transform world coords to radar canvas
+      const mapX = (x) => (w / 2) + x * 2.6;
+      const mapZ = (z) => 22 - z * 0.60;
+
+      // Draw Wide Cavern Corridor Boundary
+      ctx.strokeStyle = '#b05938';
+      ctx.lineWidth = 18; // Reflects 34m+ diameter
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      const pts = cavernSpline.getPoints(50);
+      pts.forEach((p, idx) => {
+        const rx = mapX(p.x);
+        const rz = mapZ(p.z);
+        if (idx === 0) ctx.moveTo(rx, rz);
+        else ctx.lineTo(rx, rz);
+      });
+      ctx.stroke();
+
+      // Great Stope Expanded Dome Chamber
+      ctx.fillStyle = 'rgba(176, 89, 56, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(mapX(-14), mapZ(-72), 32, 24, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Station Beacon points
+      MINE_HUBS.forEach((hub, i) => {
+        const hx = mapX(hub.target.x);
+        const hz = mapZ(hub.target.z);
+        ctx.fillStyle = i === 2 ? '#38bdf8' : '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(hx, hz, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Current Observer Point & Sensor FOV Cone
+      const cx = mapX(camera.position.x);
+      const cz = mapZ(camera.position.z);
+
+      ctx.fillStyle = '#10b981';
+      ctx.shadowColor = '#059669';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(cx, cz, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function updateTelemetryHUD() {
+      document.getElementById('coord-x').textContent = `${camera.position.x.toFixed(1)} m`;
+      document.getElementById('coord-y').textContent = `${camera.position.y.toFixed(1)} m`;
+      document.getElementById('coord-z').textContent = `${camera.position.z.toFixed(1)} m`;
+
+      // Update Compass Needle Rotation based on camera yaw
+      const needle = document.getElementById('compass-needle');
+      if (needle && orbitControls) {
+        const rot = orbitControls.getAzimuthalAngle() * (180 / Math.PI);
+        needle.style.transform = `rotate(${-rot}deg)`;
+      }
+
+      // Rotate Station Beacons
+      if (markerGroup) {
+        markerGroup.children.forEach(b => {
+          b.children[0].rotation.y += 0.02;
+        });
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toast-text').textContent = msg;
+      t.style.opacity = '1';
+      clearTimeout(t._timeout);
+      t._timeout = setTimeout(() => { t.style.opacity = '0'; }, 2600);
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('viewport-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    let lastRadarTick = 0;
+
+    function mainAnimationLoop(timestamp) {
+      requestAnimationFrame(mainAnimationLoop);
+
+      TWEEN.update();
+      orbitControls.update();
+      updateTelemetryHUD();
+
+      // Render 2D radar at 20fps for performance
+      if (timestamp - lastRadarTick > 50) {
+        renderGeospatialRadar();
+        lastRadarTick = timestamp;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      initThreeScene();
+      setupUIEventListeners();
+      renderGeospatialRadar();
+      requestAnimationFrame(mainAnimationLoop);
+      showToast("3D Geological Survey GIS Online • Span: 34m - 52m");
+    };
+  </script>
+</body>
+</html>
