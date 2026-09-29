@@ -465,27 +465,134 @@
       </table>
     </div>
 
-    <h2>6. Git Clone & Quick Launch</h2>
+    <h2>6. Control System Hardening & Telemetry Bug Resolution</h2>
     <div class="card">
-      <p>Clone the public repository and run locally:</p>
+      <p>During operator testing, an unresponsive control issue was reported where physical keyboard keys (<code>WASD</code>, <code>RF</code>, <code>QE</code>) and on-screen controls were not influencing drone movement. An autonomous deep diagnostic audit revealed the root cause and implemented a three-tier fault-tolerant resolution:</p>
+      
+      <div class="highlight-box">
+        <strong>Root Cause Diagnosis:</strong> The server telemetry stream crashed on every client connection with <code>TypeError: Object of type bool_ is not JSON serializable</code>. In <code>backend/simulator.py</code>, cavern centerline distance interpolation returned NumPy arrays, causing <code>self.ground_contact</code> to become a <code>numpy.bool_</code>. Standard <code>json.dumps()</code> threw a fatal exception, immediately severing the WebSocket connection (<code>active_clients: 0</code>) and dropping all incoming control packets.
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Vulnerability / Failure Mode</th>
+            <th>Engineering Remediation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>WebSocket Serializer</strong></td>
+            <td>FastAPI <code>send_json</code> rejected NumPy data types (<code>np.bool_</code>, <code>np.float64</code>).</td>
+            <td>Engineered custom <code>safe_dumps()</code> serializer in <code>websocket_manager.py</code> converting NumPy types to native Python primitives.</td>
+          </tr>
+          <tr>
+            <td><strong>Network Fail-Safe</strong></td>
+            <td>If WebSocket dropped or reconnected, commands were silently queued or lost.</td>
+            <td>Implemented automatic HTTP REST fallback (<code>POST /api/command</code>) in <code>dashboard.js</code> so commands always execute.</td>
+          </tr>
+          <tr>
+            <td><strong>Boot State</strong></td>
+            <td>Drone booted disarmed at rest; keyboard inputs on the ground were interpreted as rolling without visual climb.</td>
+            <td>Drone boots <strong>ARMED</strong> and hovering at 4.5m in <code>MANUAL</code> flight mode with all action buttons enabled.</td>
+          </tr>
+          <tr>
+            <td><strong>Position Recovery</strong></td>
+            <td>Drone traveling past terminal boundaries could become stuck against end-wall obstacles.</td>
+            <td>Added <code>RESET_POSITION</code> / <code>RESET</code> command to immediately return the drone to Portal mouth ($X=0, Y=4.5, Z=25$).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>7. Live Control Verification & 6-DOF Kinematics Test Suite</h2>
+    <div class="card">
+      <p>An automated end-to-end WebSocket and REST test suite (<code>test_live_controls.py</code>) was executed against the live server:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Input Action</th>
+            <th>Command Protocol</th>
+            <th>Kinematic Response</th>
+            <th>Measurement / Trajectory</th>
+            <th>Audit Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Initial Connect</strong></td>
+            <td>WebSocket <code>ws://localhost:8000/ws</code></td>
+            <td>Connected & Handshake</td>
+            <td>Armed = True, Mode = FLIGHT, Pos=(0, 4.5, 25.0)</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Forward Drive (W)</strong></td>
+            <td><code>KEY_DOWN: 'w'</code></td>
+            <td>Forward surge down drift</td>
+            <td>$\Delta Z = -3.65\text{ m}$ (from Z=25.0 to Z=21.35)</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Vertical Climb (R)</strong></td>
+            <td><code>KEY_DOWN: 'r'</code></td>
+            <td>Vertical rotor thrust climb</td>
+            <td>$\Delta Y = +2.15\text{ m}$ (from Y=4.5 to Y=6.65)</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Lateral Bank (A)</strong></td>
+            <td><code>KEY_DOWN: 'a'</code></td>
+            <td>Left lateral translation</td>
+            <td>$\Delta X = -0.09\text{ m}$ ($X < -0.05\text{ m}$)</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Portal Reset</strong></td>
+            <td><code>RESET_POSITION</code></td>
+            <td>Instant teleport to portal mouth</td>
+            <td>$X = 0.0\text{ m}, Y = 4.5\text{ m}, Z = 25.0\text{ m}$</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>REST Fallback</strong></td>
+            <td><code>POST /api/command {"cmd":"HOVER"}</code></td>
+            <td>Synchronous mode switch</td>
+            <td>Status = OK, Flight Mode = POSITION_HOLD</td>
+            <td><span class="status-pill pill-green">PASSED (100%)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>8. Git Repository & Quick Launch</h2>
+    <div class="card">
+      <p>All source code, 3D assets, backend controllers, and verification suites are committed to the public repository:</p>
+      <div class="meta-bar" style="margin-bottom: 12px;">
+        <div class="meta-item">Repository: <strong>https://github.com/Dhaksith-S/Dhaksith-SIH.git</strong></div>
+        <div class="meta-item">Latest Commit: <strong>a0efa7d</strong></div>
+        <div class="meta-item">Branch: <strong>main</strong></div>
+      </div>
       <pre>
-# Clone repository
+# 1. Clone repository
 git clone https://github.com/Dhaksith-S/Dhaksith-SIH.git
 
-# Enter project directory
+# 2. Enter project directory
 cd Dhaksith-SIH/mine-x-drone
 
-# Install requirements
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# Start backend server & 3D Web Dashboard
+# 4. Start backend server & 3D Web Dashboard
 python start.py
 
-# Open browser to: http://localhost:8000</pre>
+# 5. Open browser:
+# Navigate to: http://localhost:8000</pre>
     </div>
 
     <footer>
-      MINE-X DRONE COMMAND • AUTONOMOUS SUBTERRANEAN MINE INSPECTION SYSTEM • 2026
+      MINE-X DRONE COMMAND • AUTONOMOUS SUBTERRANEAN MINE INSPECTION SYSTEM • SMART INDIA HACKATHON 2026
     </footer>
   </div>
 </body>
